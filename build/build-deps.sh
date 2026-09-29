@@ -10,6 +10,9 @@ set -e
 
 mkdir -p "$SRC" "$STAGE/lib/pkgconfig" "$STAGE/include"
 
+# The SDL_* libraries are built without their test programs
+# (noinst_PROGRAMS=): glfont needs GL headers, and nothing here uses them.
+
 # unpack <tarball> <dir>: fresh copy in $SRC, plus patches/<dir-without-version>/*
 unpack() {
   local tarball=$1 dir=$2 name=${3:-}
@@ -34,7 +37,7 @@ step_image() {
       --disable-bmp --disable-gif --disable-lbm --disable-pcx --disable-pnm \
       --disable-qoi --disable-svg --disable-tga --disable-xcf --disable-xpm \
       --disable-xv --enable-png --disable-png-shared
-    make -j"$JOBS" && make install )
+    make -j"$JOBS" noinst_PROGRAMS= && make noinst_PROGRAMS= install )
 }
 
 # SDL2_ttf: its bundled FreeType, no HarfBuzz (Freeciv only renders simple
@@ -46,7 +49,7 @@ step_ttf() {
     # which clashes with the devkit's libz.a at link time.
     CFLAGS="$CFLAGS -DFT_CONFIG_OPTION_SYSTEM_ZLIB"
     ro_configure --disable-sdltest --enable-freetype-builtin --disable-harfbuzz
-    make -j"$JOBS" && make install )
+    make -j"$JOBS" noinst_PROGRAMS= && make noinst_PROGRAMS= install )
 }
 
 # SDL2_mixer: WAV and Ogg Vorbis (bundled stb_vorbis), which is what
@@ -58,7 +61,7 @@ step_mixer() {
       --enable-music-ogg-stb --disable-music-ogg-shared \
       --disable-music-cmd --disable-music-mod --disable-music-midi \
       --disable-music-flac --disable-music-mp3 --disable-music-opus
-    make -j"$JOBS" && make install )
+    make -j"$JOBS" noinst_PROGRAMS= && make noinst_PROGRAMS= install )
 }
 
 # libcurl: plain HTTP only (metaserver list, modpack index). No TLS yet, so

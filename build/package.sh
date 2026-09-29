@@ -10,7 +10,7 @@ set -e
 VERSION=${VERSION:-$FREECIV_VERSION-riscos1test}
 FC=$SRC/freeciv-$FREECIV_TAG
 B=$FC/build-ro
-DIST=$RCF_ROOT/dist
+DIST=${DIST:-$RCF_ROOT/dist}
 APP=$DIST/'!Freeciv'
 INST=$STAGE/install
 

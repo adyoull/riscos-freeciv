@@ -34,6 +34,8 @@ rm -rf "$tmp"
 
 find -L "$GCCSDK_ENV/" -name '*.la' -delete
 # 4. static only: meson resolves -lstdc++ to a full path and would pick the
-#    .so, which a -static link rejects. Nothing here links shared.
-find -L "$T/lib" -maxdepth 1 -name '*.so*' -delete
+#    .so, which a -static link rejects. Nothing here links shared, but
+#    libgcc_s.so stays: libtool links the libraries' own test programs
+#    without -static, and the GCC driver then asks for -lgcc_s.
+find -L "$T/lib" -maxdepth 1 -name '*.so*' ! -name 'libgcc_s.so*' -delete
 echo "toolchain ready: $($TARGET-gcc --version | head -1)"
