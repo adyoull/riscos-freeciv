@@ -1,5 +1,5 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
-From: Claude <noreply@anthropic.com>
+From: Andrew Youll <adyoull@users.noreply.github.com>
 Date: Tue, 29 Sep 2026 23:36:55 +0100
 Subject: [PATCH] SDL2 client: faster screen updates, mouse wheel, resolution
  changes

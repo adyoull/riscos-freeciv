@@ -75,4 +75,4 @@ The package's `docs.licences` has the licences of everything linked in.
 `tools/rozip.py`, `tools/png2sprite.py`, `tools/check-stack-probes.py` and
 `tools/check-unixlib.sh` come from riscos-warzone2100.
 
-This port was made with the help of an AI assistant (Claude, by Anthropic).
+Parts of this port were written with the help of an AI assistant.
