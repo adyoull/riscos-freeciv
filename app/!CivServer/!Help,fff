@@ -1,0 +1,18 @@
+!CivServer - the Freeciv server
+================================
+
+Runs the Freeciv server in a TaskWindow, where you can see its messages
+and type server commands (help, list, save, quit, ...).
+
+!Freeciv starts a server by itself when you choose "Start new game". If
+that doesn't work on your machine, or you want to see the server:
+
+  1. Double-click !CivServer (the directory with !Freeciv in it must have
+     been opened first). A "Freeciv server" window opens.
+  2. Double-click !Freeciv and choose "Start new game". It finds the
+     running server and plays on it.
+
+Other players on your network can join this server too (port 5556).
+
+The server program and the game data are inside !Freeciv; this
+application only starts it. See !Freeciv's !Help for the licences.

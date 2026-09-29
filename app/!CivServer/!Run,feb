@@ -1,0 +1,18 @@
+| !Run for !CivServer - the Freeciv server in a TaskWindow.
+| Start this first, then !Freeciv, and choose "Start new game": the client
+| plays on this server. Type server commands (e.g. help, list, save) in the
+| TaskWindow. The server program and the game's data are in !Freeciv, which
+| must have been seen by the Filer (open the directory it's in).
+
+IconSprites <Obey$Dir>.!Sprites
+If "<Freeciv$Dir>"="" Then Error Open the directory with !Freeciv in it first: the server program and the game data are in !Freeciv.
+Set Freeciv$Path <Freeciv$Dir>.
+Obey <Freeciv$Dir>.Setup
+
+| The server's output goes to its TaskWindow.
+Unset FreecivServer$Output
+
+| The window stays open when the server stops, so its last messages can be
+| read; close it to finish. WimpSlot: the program with its tables is about
+| 28MB; its heap is a dynamic area ("Freeciv server heap").
+TaskWindow "Obey Freeciv:RunServer %*0" -wimpslot 36000K -name "Freeciv server" -display

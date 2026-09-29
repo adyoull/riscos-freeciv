@@ -1,0 +1,206 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 29 Sep 2026 22:49:47 +0100
+Subject: [PATCH] RISC OS: play on a server started by hand; simpler server
+ start
+
+The first test build's "Start new game" didn't get a server going on
+the Pi. Freeciv's earlier RISC OS ports had a separate server
+application that was started first, so:
+
+- If a server answers on 127.0.0.1 at the default port (started by
+  hand with !CivServer, which shows the server's console), "Start new
+  game" connects to it. The client still gets hack access (the server
+  checks a file in the shared storage dir).
+- Otherwise the server is started in a TaskWindow as before, with a
+  shorter command: the program is found through Freeciv$Path
+  ("Freeciv:freeciv-server"), --scenarios is left out, and
+  --riscos-quiet (taken out of argv by the server) replaces the
+  FreecivServer$Output test, so a server started by hand talks to its
+  TaskWindow.
+- 127.0.0.1 instead of "localhost" for the local server (bind and
+  connect), so InetDBase:Hosts needn't have it.
+- On failure the client says what happened and suggests !CivServer.
+---
+ client/connectdlg_common.c | 72 +++++++++++++++++++++++++-------------
+ server/civserver.c         | 16 ++++++---
+ 2 files changed, 59 insertions(+), 29 deletions(-)
+
+diff --git a/client/connectdlg_common.c b/client/connectdlg_common.c
+index 68193bc..92bbb78 100644
+--- a/client/connectdlg_common.c
++++ b/client/connectdlg_common.c
+@@ -71,6 +71,13 @@
+ 
+ #define WAIT_BETWEEN_TRIES 100000 /* usecs */
+ 
++#ifdef FREECIV_RISCOS
++/* Don't depend on "localhost" being in InetDBase:Hosts */
++#define LOCAL_SERVER_HOST "127.0.0.1"
++#else
++#define LOCAL_SERVER_HOST "localhost"
++#endif
++
+ #ifdef FREECIV_PATIENT_CONNECT
+ #define NUMBER_OF_TRIES 10000
+ #else  /* FREECIV_PATIENT_CONNECT */
+@@ -252,7 +259,9 @@ bool client_start_server(void)
+   char buf[512];
+   int connect_tries = 0;
+   char savesdir[MAX_LEN_PATH];
++#ifndef FREECIV_RISCOS
+   char scensdir[MAX_LEN_PATH];
++#endif
+   char *storage;
+   char *ruleset;
+ 
+@@ -293,6 +302,19 @@ bool client_start_server(void)
+   /* This also resets client_has_hack. */
+   client_kill_server(TRUE);
+ 
++#ifdef FREECIV_RISCOS
++  /* As with Freeciv's earlier RISC OS ports, the server can be started by
++   * hand first (!CivServer, which shows its console). If one answers
++   * on the default port, play on that one. The client still gets hack
++   * access: the server checks a file in the (shared) storage dir. */
++  if (connect_to_server(user_name, LOCAL_SERVER_HOST, DEFAULT_SOCK_PORT,
++                        buf, sizeof(buf)) != -1) {
++    output_window_append(ftc_client,
++                         _("Using the Freeciv server that is already running."));
++    goto riscos_connected;
++  }
++#endif /* FREECIV_RISCOS */
++
+   output_window_append(ftc_client, _("Starting local server..."));
+ 
+   /* Find a free port */
+@@ -301,7 +323,7 @@ bool client_start_server(void)
+    * by not starting from DEFAULT_SOCK_PORT but from one higher. */
+   internal_server_port = find_next_free_port(DEFAULT_SOCK_PORT + 1,
+                                              DEFAULT_SOCK_PORT + 1 + 10000,
+-                                             family, "localhost", TRUE);
++                                             family, LOCAL_SERVER_HOST, TRUE);
+ 
+   if (internal_server_port < 0) {
+     output_window_append(ftc_client, _("Couldn't start the server."));
+@@ -323,31 +345,22 @@ bool client_start_server(void)
+ #ifdef FREECIV_RISCOS
+   {
+     /* The server runs in a TaskWindow, which multitasks it pre-emptively
+-     * while this program polls the Wimp. The program is found through
+-     * Freeciv$Dir (set by !Run), expanded here: a command line doesn't
+-     * expand <variables> in file names. Its output goes where
+-     * FreecivServer$Output says (see fc_riscos_redirect_output()). The
+-     * TaskWindow closes when the server exits. The other paths are UnixLib
+-     * paths without spaces (the storage dir is /<Choices$Write>/Freeciv),
+-     * which the server's UnixLib expands when it opens files, so no
+-     * quoting is needed. */
++     * while this program polls the Wimp. The program is found through the
++     * path variable Freeciv$Path (set by !Freeciv's !Boot and !Run), so
++     * the command stays short. --riscos-quiet sends its output to the file
++     * named by FreecivServer$Output (else nowhere), since any output would
++     * open the TaskWindow's window. The TaskWindow closes when the server
++     * exits. The other paths are UnixLib paths without spaces (the storage
++     * dir is /<Choices$Write>/Freeciv), which the server's UnixLib expands
++     * when it opens files, so no quoting is needed. */
+     struct astring srv = ASTRING_INIT;
+     const char *wimpslot = getenv("FreecivServer$WimpSlot");
+-    const char *appdir = getenv("Freeciv$Dir");
+-
+-    if (appdir == NULL || appdir[0] == '\0') {
+-      log_error("Freeciv$Dir is not set: start Freeciv from its !Run file.");
+-      output_window_append(ftc_client, _("Couldn't start the server."));
+-
+-      return FALSE;
+-    }
+ 
+     fc_snprintf(savesdir, sizeof(savesdir), "%s" DIR_SEPARATOR "saves", storage);
+-    fc_snprintf(scensdir, sizeof(scensdir), "%s" DIR_SEPARATOR "scenarios", storage);
+ 
+-    astr_add(&srv, "%s.freeciv-server -p %d --bind localhost"
+-             " -q 1 -e --saves %s --scenarios %s -A none",
+-             appdir, internal_server_port, savesdir, scensdir);
++    astr_add(&srv, "Freeciv:freeciv-server --riscos-quiet -p %d"
++             " --bind " LOCAL_SERVER_HOST " -q 1 -e --saves %s -A none",
++             internal_server_port, savesdir);
+     if (logfile) {
+       astr_add(&srv, " --debug %s --log %s",
+                log_level_name(log_get_level()), logfile);
+@@ -373,14 +386,17 @@ bool client_start_server(void)
+                 (wimpslot != NULL && wimpslot[0] != '\0') ? wimpslot : "36000K");
+     astr_free(&srv);
+ 
+-    log_verbose("Starting server: %s", cmdline);
++    log_normal("Starting server: %s", cmdline);
+     server_quitting = FALSE;
+     server_task = fc_riscos_start_task(cmdline, errbuf, sizeof(errbuf));
+     if (server_task == -1) {
+       server_task = 0;
+       log_error("Failed to start server: %s", errbuf);
+-      output_window_append(ftc_client, _("Couldn't start the server."));
++      output_window_append(ftc_client, _("Couldn't start the server:"));
+       output_window_append(ftc_client, errbuf);
++      output_window_append(ftc_client,
++                           _("Start !CivServer first, then choose"
++                             " \"Start new game\" again."));
+ 
+       return FALSE;
+     }
+@@ -665,7 +681,7 @@ bool client_start_server(void)
+ #endif /* HAVE_USABLE_FORK */
+ 
+   /* A reasonable number of tries */
+-  while (connect_to_server(user_name, "localhost", internal_server_port,
++  while (connect_to_server(user_name, LOCAL_SERVER_HOST, internal_server_port,
+                            buf, sizeof(buf)) == -1) {
+     fc_usleep(WAIT_BETWEEN_TRIES);
+ #ifdef FREECIV_RISCOS
+@@ -694,6 +710,11 @@ bool client_start_server(void)
+ 
+     log_error("Failed to connect to spawned server!");
+     output_window_append(ftc_client, _("Couldn't connect to the server."));
++#ifdef FREECIV_RISCOS
++    output_window_append(ftc_client,
++                         _("Start !CivServer to see the server's messages;"
++                           " while it runs, \"Start new game\" uses it."));
++#endif /* FREECIV_RISCOS */
+     output_window_append(ftc_client,
+                          _("We probably couldn't start it from here."));
+     output_window_append(ftc_client,
+@@ -702,6 +723,9 @@ bool client_start_server(void)
+     return FALSE;
+   }
+ 
++#ifdef FREECIV_RISCOS
++ riscos_connected:
++#endif
+   /* We set the topology to match the view.
+    *
+    * When a typical player launches a game, they want the map orientation
+diff --git a/server/civserver.c b/server/civserver.c
+index 3e08149..948939f 100644
+--- a/server/civserver.c
++++ b/server/civserver.c
+@@ -87,11 +87,17 @@ int main(int argc, char *argv[])
+   char *option = NULL;
+ 
+ #ifdef FREECIV_RISCOS
+-  /* Started by the client in a TaskWindow: any output would open the
+-   * TaskWindow's window, so it goes to FreecivServer$Output, or nowhere.
+-   * Run from a command line, the server talks to the console as usual. */
+-  if (getenv("FreecivServer$Output") != NULL) {
+-    fc_riscos_redirect_output("FreecivServer$Output");
++  /* Started by the client in a TaskWindow (--riscos-quiet, taken out of
++   * argv here): any output would open the TaskWindow's window, so it goes
++   * to FreecivServer$Output, or nowhere. Started by hand (!CivServer),
++   * the server talks to its TaskWindow as usual. */
++  for (inx = 1; inx < argc; inx++) {
++    if (strcmp(argv[inx], "--riscos-quiet") == 0) {
++      fc_riscos_redirect_output("FreecivServer$Output");
++      memmove(&argv[inx], &argv[inx + 1], (argc - inx) * sizeof(argv[0]));
++      argc--;
++      break;
++    }
+   }
+ #endif /* FREECIV_RISCOS */
+ 

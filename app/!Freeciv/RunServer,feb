@@ -1,0 +1,4 @@
+| Runs the Freeciv server (used by !CivServer, inside its TaskWindow).
+| Saved games go in <Choices$Write>.Freeciv.saves, where the client's
+| "Load game" looks for them.
+Do Run Freeciv:freeciv-server --saves /|<Choices$Write>/Freeciv/saves %*0

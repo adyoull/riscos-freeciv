@@ -7,11 +7,12 @@
 set -e
 . "$(dirname "$0")/env.sh"
 
-VERSION=${VERSION:-$FREECIV_VERSION-riscos1test}
+VERSION=${VERSION:-$FREECIV_VERSION-riscos2test}
 FC=$SRC/freeciv-$FREECIV_TAG
 B=$FC/build-ro
 DIST=${DIST:-$RCF_ROOT/dist}
 APP=$DIST/'!Freeciv'
+SRVAPP=$DIST/'!CivServer'
 INST=$STAGE/install
 
 export PATH="$HOSTTOOLS/bin:$PATH"
@@ -23,9 +24,11 @@ rm -rf "$INST"
 DESTDIR=$INST meson install -C "$B" --no-rebuild >/dev/null
 share=$INST/freeciv/share
 
-rm -rf "$APP"
-mkdir -p "$APP/docs" "$DIST"
+rm -rf "$APP" "$SRVAPP"
+mkdir -p "$APP/docs" "$DIST" "$SRVAPP"
 cp "$RCF_ROOT"/app/'!Freeciv'/* "$APP/"
+# !CivServer: starts the server (inside !Freeciv) in a TaskWindow by hand.
+cp "$RCF_ROOT"/app/'!CivServer'/* "$SRVAPP/"
 
 # Programs: ELF -> AIF (Absolute), stripped. -e: EABI (arm-riscos-gnueabihf) ELF.
 for p in freeciv-sdl2 freeciv-server; do
@@ -74,9 +77,11 @@ done
 # Icon sprites from Freeciv's own client icon.
 python3 "$RCF_ROOT/tools/png2sprite.py" "$FC/data/freeciv-client.png" "$APP/!Sprites,ff9" \
   '!freeciv:34x34' 'sm!freeciv:17x17'
+python3 "$RCF_ROOT/tools/png2sprite.py" "$FC/data/freeciv-server.png" "$SRVAPP/!Sprites,ff9" \
+  '!civserver:34x34' 'sm!civserver:17x17'
 
 echo "$VERSION" > "$APP/docs/Version,fff"
 
-( cd "$DIST" && rm -f "Freeciv-$VERSION.zip" && python3 "$RCF_ROOT/tools/rozip.py" "Freeciv-$VERSION.zip" '!Freeciv' )
+( cd "$DIST" && rm -f "Freeciv-$VERSION.zip" && python3 "$RCF_ROOT/tools/rozip.py" "Freeciv-$VERSION.zip" '!Freeciv' '!CivServer' )
 ls -la "$DIST/Freeciv-$VERSION.zip"
 md5sum "$DIST/Freeciv-$VERSION.zip" "$APP/freeciv-sdl2,ff8" "$APP/freeciv-server,ff8"

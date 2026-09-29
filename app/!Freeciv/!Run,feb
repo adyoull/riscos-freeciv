@@ -4,18 +4,10 @@
 | !SharedLibs isn't needed.
 
 Set Freeciv$Dir <Obey$Dir>
+Set Freeciv$Path <Obey$Dir>.
 IconSprites <Freeciv$Dir>.!Sprites
 
-| --- Runtime support -------------------------------------------------
-RMEnsure SharedUnixLibrary 1.16 IfThere System:Modules.SharedULib Then RMLoad System:Modules.SharedULib
-RMEnsure SharedUnixLibrary 1.16 Error Freeciv needs SharedUnixLibrary 1.16 or later. Install it with PackMan.
-RMEnsure ARMEABISupport 0 IfThere System:Modules.ARMEABISupport Then RMLoad System:Modules.ARMEABISupport
-RMEnsure ARMEABISupport 0 Error Freeciv needs the ARMEABISupport module. Install it with PackMan.
-| PThreadTicker (from riscos-unixlib) runs UnixLib's thread switcher, so it
-| is always paged in, whichever task is. A copy in !System is used if it's
-| newer; without the module the programs run the same code from the RMA.
-RMEnsure PThreadTicker 0.01 IfThere System:Modules.PThrTicker Then RMLoad System:Modules.PThrTicker
-RMEnsure PThreadTicker 0.01 RMLoad <Freeciv$Dir>.PThrTicker
+Obey <Freeciv$Dir>.Setup
 
 | --- Sound ------------------------------------------------------------
 | Sound goes through SharedSoundBuffer, StreamManager and SharedSound
@@ -27,19 +19,10 @@ RMEnsure SharedSound 1.07 IfThere System:Modules.SSound Then RMLoad System:Modul
 RMEnsure StreamManager 0.03 IfThere System:Modules.StreamMan Then RMLoad System:Modules.StreamMan
 RMEnsure SharedSoundBuffer 0.07 IfThere System:Modules.SSBuffer Then RMLoad System:Modules.SSBuffer
 
-| --- Files ------------------------------------------------------------
-| Paths handed to the programs are UnixLib paths of the form /<Var$Dir>/...
-| Set expands <variables>, so they are written /|<Var$Dir>/... here: "|<"
-| keeps the "<", and UnixLib expands the variable when a file is opened.
-| Client options, saved games and extra data go in <Choices$Write>.Freeciv.
-CDir <Choices$Write>.Freeciv
-Set FREECIV_DATA_PATH /|<Freeciv$Dir>/data:/|<Choices$Write>/Freeciv/3.2
-Set FREECIV_SCENARIO_PATH /|<Freeciv$Dir>/data/scenarios:/|<Choices$Write>/Freeciv/scenarios
-Set FREECIV_LOCAL_ENCODING UTF-8
-
 | --- Server -----------------------------------------------------------
-| "Start new game" runs the server (freeciv-server) in a TaskWindow, which
-| closes again when the game ends. Its WimpSlot:
+| "Start new game" plays on the server started with !CivServer if one is
+| running; otherwise it starts the server (freeciv-server) itself, in a
+| TaskWindow that closes again when the game ends. Its WimpSlot:
 Set FreecivServer$WimpSlot 36000K
 
 | --- Logging ----------------------------------------------------------
@@ -48,7 +31,7 @@ Set FreecivServer$WimpSlot 36000K
 | <Wimp$ScrapDir>.FreecivLog and the server to <Wimp$ScrapDir>.FreecivSrvLog.
 | Set Freeciv$Log 1
 Set Freeciv$Output /dev/null
-Set FreecivServer$Output /dev/null
+Unset FreecivServer$Output
 If "<Freeciv$Log>"<>"" Then Set Freeciv$Output /|<Wimp$ScrapDir>/FreecivLog
 If "<Freeciv$Log>"<>"" Then Set FreecivServer$Output /|<Wimp$ScrapDir>/FreecivSrvLog
 Unset Freeciv$LogArg

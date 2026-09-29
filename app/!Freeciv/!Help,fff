@@ -27,6 +27,12 @@ computer: the game starts its server in a TaskWindow ("Freeciv server" in
 the Task Manager), which closes when you leave the game. The desktop keeps
 running while you play.
 
+You can also start the server yourself first, as with earlier RISC OS
+versions of Freeciv: double-click !CivServer (a window shows the server's
+messages and takes server commands), then !Freeciv, and choose "Start new
+game". The client plays on the running server. Use this if the game can't
+start a server by itself.
+
 Client options, saved games and any extra data (tilesets, rulesets) go in
 <Choices$Write>.Freeciv. Saved games are in <Choices$Write>.Freeciv.saves.
 

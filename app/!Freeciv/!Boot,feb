@@ -1,2 +1,5 @@
-| !Boot for !Freeciv
+| !Boot for !Freeciv: seen by the Filer. Freeciv$Dir and Freeciv$Path let
+| !CivServer find the server program and the game's data.
+Set Freeciv$Dir <Obey$Dir>
+Set Freeciv$Path <Obey$Dir>.
 IconSprites <Obey$Dir>.!Sprites

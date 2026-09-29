@@ -4,7 +4,9 @@ A RISC OS port of [Freeciv](https://www.freeciv.org/) 3.2.6: the SDL2 client
 and the server, so you can play against the computer on a RISC OS desktop,
 or join a Freeciv server on the network.
 
-Status: **first test build (3.2.6-riscos1test), not yet run on RISC OS.**
+Status: **test builds.** riscos1test ran on a Pi but couldn't start its
+server; riscos2test adds !CivServer (start the server by hand, as in the
+earlier RISC OS ports) and a simpler automatic start.
 
 ## How it works
 
@@ -44,6 +46,9 @@ drop it.
    which polls the Wimp, so the desktop and the server keep running. Heaps
    in dynamic areas; stdout/stderr to files named by variables.
 4. **1024x768 window** by default.
+5. **Server started by hand.** If a server answers on 127.0.0.1:5556
+   (started with `!CivServer`), "Start new game" plays on it. The automatic
+   start finds the program through `Freeciv$Path` and binds to 127.0.0.1.
 
 ## Building
 
