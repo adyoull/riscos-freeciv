@@ -1,0 +1,14 @@
+# Freeciv project definition for the RISC OS port (meson -Dproject-definition).
+# Same as Freeciv's bootstrap/freeciv.fcproj, except where user files go.
+
+META_URL https://meta.freeciv.org/metaserver.php
+
+# User files (client options, saved games, extra data) go in Choices.
+# This is a UnixLib path: UnixLib expands <Choices$Write> when a file is
+# opened, so the string itself has no spaces or colons (Freeciv splits its
+# search paths at ':').
+FREECIV_STORAGE_DIR /<Choices$Write>/Freeciv
+
+FREECIV_DEFAULT_PORT 5556
+
+FREECIV_HOMEPAGE https://www.freeciv.org/

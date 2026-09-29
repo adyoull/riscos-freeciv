@@ -1,0 +1,630 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Andrew Youll <adyoull@users.noreply.github.com>
+Date: Tue, 29 Sep 2026 22:10:40 +0100
+Subject: [PATCH] RISC OS: start the server in a TaskWindow; keep the desktop
+ running
+
+RISC OS has no fork()/exec(), and a desktop program must call Wimp_Poll
+regularly or every other task stops.
+
+- New utility/fc_riscos.[ch]: output redirection, Wimp_StartTask, task
+  alive check (TaskManager_TaskNameFromHandle), Message_Quit.
+- connectdlg_common.c: on RISC OS, client_start_server() runs
+  "TaskWindow <app dir>.freeciv-server ..." with Wimp_StartTask (the
+  app dir from Freeciv$Dir, expanded by the client),
+  WimpSlot from FreecivServer$WimpSlot (default 36000K); the connect
+  loop stops when the TaskWindow has gone; a hard kill sends
+  Message_Quit to the TaskWindow.
+- fc_usleep() can be given a hook (fc_set_usleep_hook()); the SDL2
+  client sets one that calls SDL_Delay(), which polls the Wimp. UnixLib's
+  nanosleep() busy-waits without polling.
+- gui-sdl2 main loop: select() on the server socket without a timeout
+  (UnixLib's select() also waits without polling), then SDL_Delay(10)
+  when no event is pending.
+- Client and server heaps go in dynamic areas ("Freeciv Heap",
+  "Freeciv server heap"); stdout/stderr go to the files named by
+  Freeciv$Output / FreecivServer$Output (else discarded), since
+  printing from a desktop task opens a command window.
+---
+ client/connectdlg_common.c | 111 ++++++++++++++++++++++++++++---
+ client/gui-sdl2/gui_main.c |  44 +++++++++++++
+ meson.build                |   1 +
+ server/civserver.c         |  19 ++++++
+ utility/Makefile.am        |   2 +
+ utility/fc_riscos.c        | 129 +++++++++++++++++++++++++++++++++++++
+ utility/fc_riscos.h        |  55 ++++++++++++++++
+ utility/support.c          |  22 +++++++
+ utility/support.h          |   3 +
+ 9 files changed, 378 insertions(+), 8 deletions(-)
+ create mode 100644 utility/fc_riscos.c
+ create mode 100644 utility/fc_riscos.h
+
+diff --git a/client/connectdlg_common.c b/client/connectdlg_common.c
+index 64d100e..68193bc 100644
+--- a/client/connectdlg_common.c
++++ b/client/connectdlg_common.c
+@@ -53,6 +53,9 @@
+ #include "registry.h"
+ #include "shared.h"
+ #include "support.h"
++#ifdef FREECIV_RISCOS
++#include "fc_riscos.h"
++#endif
+ 
+ /* client */
+ #include "attribute.h"
+@@ -80,7 +83,12 @@
+ #define HAVE_USABLE_FORK
+ #endif
+ 
+-#ifdef HAVE_USABLE_FORK
++#ifdef FREECIV_RISCOS
++/* RISC OS has no fork()/exec(): the server runs in a TaskWindow, started
++ * with Wimp_StartTask. This is the TaskWindow's task handle. */
++#undef HAVE_USABLE_FORK
++static int server_task = 0;
++#elif defined(HAVE_USABLE_FORK)
+ static pid_t server_pid = -1;
+ #elif FREECIV_MSWINDOWS
+ HANDLE server_process = INVALID_HANDLE_VALUE;
+@@ -126,7 +134,9 @@ bool is_server_running(void)
+   if (server_quitting) {
+     return FALSE;
+   }
+-#ifdef HAVE_USABLE_FORK
++#ifdef FREECIV_RISCOS
++  return fc_riscos_task_alive(server_task);
++#elif defined(HAVE_USABLE_FORK)
+   return (server_pid > 0);
+ #elif FREECIV_MSWINDOWS
+   return (server_process != INVALID_HANDLE_VALUE);
+@@ -152,7 +162,15 @@ bool can_client_access_hack(void)
+ **************************************************************************/
+ void client_kill_server(bool force)
+ {
+-#ifdef HAVE_USABLE_FORK
++#ifdef FREECIV_RISCOS
++  if (server_quitting && server_task != 0) {
++    /* Already asked to /quit.
++     * If it didn't do that, close its TaskWindow. */
++    fc_riscos_quit_task(server_task);
++    server_task = 0;
++    server_quitting = FALSE;
++  }
++#elif defined(HAVE_USABLE_FORK)
+   if (server_quitting && server_pid > 0) {
+     /* Already asked to /quit.
+      * If it didn't do that, kill it. */
+@@ -198,7 +216,10 @@ void client_kill_server(bool force)
+       /* Either we already disconnected, or we didn't get control of the
+        * server. In either case, the only thing to do is a "hard" kill of
+        * the server. */
+-#ifdef HAVE_USABLE_FORK
++#ifdef FREECIV_RISCOS
++      fc_riscos_quit_task(server_task);
++      server_task = 0;
++#elif defined(HAVE_USABLE_FORK)
+       kill(server_pid, SIGTERM);
+       waitpid(server_pid, NULL, WUNTRACED);
+       server_pid = -1;
+@@ -223,7 +244,8 @@ void client_kill_server(bool force)
+ **************************************************************************/
+ bool client_start_server(void)
+ {
+-#if !defined(HAVE_USABLE_FORK) && !defined(FREECIV_MSWINDOWS)
++#if !defined(HAVE_USABLE_FORK) && !defined(FREECIV_MSWINDOWS) \
++    && !defined(FREECIV_RISCOS)
+   /* Can't do much without fork */
+   return FALSE;
+ #else /* HAVE_USABLE_FORK || FREECIV_MSWINDOWS */
+@@ -234,7 +256,10 @@ bool client_start_server(void)
+   char *storage;
+   char *ruleset;
+ 
+-#if !defined(HAVE_USABLE_FORK)
++#if defined(FREECIV_RISCOS)
++  char cmdline[1024];
++  char errbuf[256];
++#elif !defined(HAVE_USABLE_FORK)
+   /* Above also implies that this is FREECIV_MSWINDOWS ->
+    * Windows that can't use fork() */
+   STARTUPINFO si;
+@@ -295,7 +320,72 @@ bool client_start_server(void)
+ 
+   ruleset = tileset_what_ruleset(tileset);
+ 
+-#ifdef HAVE_USABLE_FORK
++#ifdef FREECIV_RISCOS
++  {
++    /* The server runs in a TaskWindow, which multitasks it pre-emptively
++     * while this program polls the Wimp. The program is found through
++     * Freeciv$Dir (set by !Run), expanded here: a command line doesn't
++     * expand <variables> in file names. Its output goes where
++     * FreecivServer$Output says (see fc_riscos_redirect_output()). The
++     * TaskWindow closes when the server exits. The other paths are UnixLib
++     * paths without spaces (the storage dir is /<Choices$Write>/Freeciv),
++     * which the server's UnixLib expands when it opens files, so no
++     * quoting is needed. */
++    struct astring srv = ASTRING_INIT;
++    const char *wimpslot = getenv("FreecivServer$WimpSlot");
++    const char *appdir = getenv("Freeciv$Dir");
++
++    if (appdir == NULL || appdir[0] == '\0') {
++      log_error("Freeciv$Dir is not set: start Freeciv from its !Run file.");
++      output_window_append(ftc_client, _("Couldn't start the server."));
++
++      return FALSE;
++    }
++
++    fc_snprintf(savesdir, sizeof(savesdir), "%s" DIR_SEPARATOR "saves", storage);
++    fc_snprintf(scensdir, sizeof(scensdir), "%s" DIR_SEPARATOR "scenarios", storage);
++
++    astr_add(&srv, "%s.freeciv-server -p %d --bind localhost"
++             " -q 1 -e --saves %s --scenarios %s -A none",
++             appdir, internal_server_port, savesdir, scensdir);
++    if (logfile) {
++      astr_add(&srv, " --debug %s --log %s",
++               log_level_name(log_get_level()), logfile);
++    }
++    if (scriptfile) {
++      astr_add(&srv, " --read %s", scriptfile);
++    }
++    if (savefile) {
++      astr_add(&srv, " --file %s", savefile);
++    }
++    if (are_deprecation_warnings_enabled()) {
++      astr_add(&srv, " --warnings");
++    }
++    if (ruleset != NULL) {
++      astr_add(&srv, " --ruleset %s", ruleset);
++    }
++
++    /* The program is ~28MB with its static arrays (research_array alone is
++     * 15MB); its heap is a dynamic area, and the rest is stack. */
++    fc_snprintf(cmdline, sizeof(cmdline),
++                "TaskWindow \"%s\" -wimpslot %s -name \"Freeciv server\" -quit",
++                astr_str(&srv),
++                (wimpslot != NULL && wimpslot[0] != '\0') ? wimpslot : "36000K");
++    astr_free(&srv);
++
++    log_verbose("Starting server: %s", cmdline);
++    server_quitting = FALSE;
++    server_task = fc_riscos_start_task(cmdline, errbuf, sizeof(errbuf));
++    if (server_task == -1) {
++      server_task = 0;
++      log_error("Failed to start server: %s", errbuf);
++      output_window_append(ftc_client, _("Couldn't start the server."));
++      output_window_append(ftc_client, errbuf);
++
++      return FALSE;
++    }
++  }
++#elif defined(HAVE_USABLE_FORK)
+   {
+     int argc = 0;
+     const int max_nargs = 25;
+@@ -443,7 +533,7 @@ bool client_start_server(void)
+       _exit(1);
+     }
+   }
+-#else /* HAVE_USABLE_FORK */
++#else /* FREECIV_RISCOS || HAVE_USABLE_FORK */
+ #ifdef FREECIV_MSWINDOWS
+   if (logfile) {
+     loghandle = CreateFile(logfile, GENERIC_WRITE,
+@@ -578,6 +668,11 @@ bool client_start_server(void)
+   while (connect_to_server(user_name, "localhost", internal_server_port,
+                            buf, sizeof(buf)) == -1) {
+     fc_usleep(WAIT_BETWEEN_TRIES);
++#ifdef FREECIV_RISCOS
++    if (!fc_riscos_task_alive(server_task)) {
++      break;
++    }
++#endif /* FREECIV_RISCOS */
+ #ifdef HAVE_USABLE_FORK
+ #ifndef FREECIV_MSWINDOWS
+     if (waitpid(server_pid, NULL, WNOHANG) != 0) {
+diff --git a/client/gui-sdl2/gui_main.c b/client/gui-sdl2/gui_main.c
+index 6d3c405..fdbcd0f 100644
+--- a/client/gui-sdl2/gui_main.c
++++ b/client/gui-sdl2/gui_main.c
+@@ -52,6 +52,10 @@
+ #include "fcintl.h"
+ #include "log.h"
+ #include "netintf.h"
++#ifdef FREECIV_RISCOS
++#include "fc_riscos.h"
++#include "support.h"
++#endif
+ 
+ /* common */
+ #include "unitlist.h"
+@@ -640,7 +644,14 @@ widget_id gui_event_loop(void *data,
+       }
+ 
+       tv.tv_sec = 0;
++#ifdef FREECIV_RISCOS
++      /* UnixLib's select() waits without polling the Wimp, which stops
++       * the desktop and the server's TaskWindow. Check without waiting,
++       * and wait in SDL_Delay() below (Wimp_PollIdle) instead. */
++      tv.tv_usec = 0;
++#else
+       tv.tv_usec = 10000; /* 10ms*/
++#endif
+ 
+       result = fc_select(net_socket + 1, &civfdset, NULL, NULL, &tv);
+       if (result < 0) {
+@@ -655,6 +666,12 @@ widget_id gui_event_loop(void *data,
+             SDL_PushEvent(net_user_event);
+           }
+         }
++#ifdef FREECIV_RISCOS
++        else if (SDL_PeepEvents(NULL, 0, SDL_PEEKEVENT,
++                                SDL_FIRSTEVENT, SDL_LASTEVENT) <= 0) {
++          SDL_Delay(10);
++        }
++#endif
+       }
+     } else { /* If connection is not establish */
+       SDL_Delay(10);
+@@ -881,10 +898,25 @@ widget_id gui_event_loop(void *data,
+ /**********************************************************************//**
+   Do any necessary pre-initialization of the UI, if necessary.
+ **************************************************************************/
++#ifdef FREECIV_RISCOS
++/**********************************************************************//**
++  RISC OS: fc_usleep() hook. SDL_Delay() polls the Wimp while it waits,
++  so the desktop and the server's TaskWindow keep running.
++**************************************************************************/
++static void riscos_usleep(unsigned long usec)
++{
++  SDL_Delay((usec + 999) / 1000);
++}
++#endif /* FREECIV_RISCOS */
++
+ void ui_init(void)
+ {
+   Uint32 sdl_flags;
+ 
++#ifdef FREECIV_RISCOS
++  fc_set_usleep_hook(riscos_usleep);
++#endif
++
+   button_behavior.counting = FALSE;
+   button_behavior.button_down_ticks = 0;
+   button_behavior.hold_state = MB_HOLD_SHORT;
+@@ -1008,8 +1040,20 @@ static void clear_double_messages_call(void)
+   this in to function named SDL_main() and it provides actual main()
+   itself.
+ **************************************************************************/
++#ifdef FREECIV_RISCOS
++/* The C heap goes in a dynamic area with this name (UnixLib), so the
++ * WimpSlot only has to hold the program; removed when the client quits. */
++const char * const __dynamic_da_name = "Freeciv Heap";
++int __dynamic_da_max_size = 256 * 1024 * 1024;
++#endif /* FREECIV_RISCOS */
++
+ int main(int argc, char **argv)
+ {
++#ifdef FREECIV_RISCOS
++  /* Printing from a desktop program would open a command window */
++  fc_riscos_redirect_output("Freeciv$Output");
++#endif
++
+   return client_main(argc, argv, FALSE);
+ }
+ 
+diff --git a/meson.build b/meson.build
+index 1a1db11..c1f7fb7 100644
+--- a/meson.build
++++ b/meson.build
+@@ -1371,6 +1371,7 @@ common_lib = library('freeciv',
+   'utility/shared.c',
+   'utility/string_vector.c',
+   'utility/support.c',
++  'utility/fc_riscos.c',
+   'utility/timing.c',
+   'common/aicore/aiactions.c',
+   'common/aicore/aisupport.c',
+diff --git a/server/civserver.c b/server/civserver.c
+index ca986d6..3e08149 100644
+--- a/server/civserver.c
++++ b/server/civserver.c
+@@ -45,6 +45,9 @@
+ #include "fcintl.h"
+ #include "log.h"
+ #include "support.h"
++#ifdef FREECIV_RISCOS
++#include "fc_riscos.h"
++#endif
+ 
+ /* common */
+ #include "capstr.h"
+@@ -69,6 +72,13 @@ static void Mac_options(int argc);  /* don't need argv */
+   1. Parses command-line arguments (possibly dialog, on mac).
+   2. Calls the main server-loop routine.
+ **************************************************************************/
++#ifdef FREECIV_RISCOS
++/* The C heap goes in a dynamic area with this name (UnixLib), so the
++ * TaskWindow's WimpSlot only has to hold the program. */
++const char * const __dynamic_da_name = "Freeciv server heap";
++int __dynamic_da_max_size = 512 * 1024 * 1024;
++#endif /* FREECIV_RISCOS */
++
+ int main(int argc, char *argv[])
+ {
+   int inx;
+@@ -76,6 +86,15 @@ int main(int argc, char *argv[])
+   bool showvers = FALSE;
+   char *option = NULL;
+ 
++#ifdef FREECIV_RISCOS
++  /* Started by the client in a TaskWindow: any output would open the
++   * TaskWindow's window, so it goes to FreecivServer$Output, or nowhere.
++   * Run from a command line, the server talks to the console as usual. */
++  if (getenv("FreecivServer$Output") != NULL) {
++    fc_riscos_redirect_output("FreecivServer$Output");
++  }
++#endif /* FREECIV_RISCOS */
++
+   /* Load Windows post-crash debugger */
+ #ifdef FREECIV_MSWINDOWS
+ # ifndef FREECIV_NDEBUG
+diff --git a/utility/Makefile.am b/utility/Makefile.am
+index 6cb4d47..bc0f70f 100644
+--- a/utility/Makefile.am
++++ b/utility/Makefile.am
+@@ -32,6 +32,8 @@ libcivutility_la_SOURCES = \
+ 		fcbacktrace.h	\
+ 		fciconv.c	\
+ 		fciconv.h	\
++		fc_riscos.c	\
++		fc_riscos.h	\
+ 		fcintl.c	\
+ 		fcintl.h	\
+ 		fcthread.c	\
+diff --git a/utility/fc_riscos.c b/utility/fc_riscos.c
+new file mode 100644
+index 0000000..1aee985
+--- /dev/null
++++ b/utility/fc_riscos.c
+@@ -0,0 +1,129 @@
++/***********************************************************************
++ Freeciv - Copyright (C) 1996 - A Kjeldberg, L Knutsen, U Wolfram
++   This program is free software; you can redistribute it and/or modify
++   it under the terms of the GNU General Public License as published by
++   the Free Software Foundation; either version 2, or (at your option)
++   any later version.
++
++   This program is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++   GNU General Public License for more details.
++***********************************************************************/
++
++#ifdef HAVE_CONFIG_H
++#include <fc_config.h>
++#endif
++
++#ifdef FREECIV_RISCOS
++
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++#include <kernel.h>
++#include <swis.h>
++
++/* utility */
++#include "support.h"
++
++#include "fc_riscos.h"
++
++#ifndef Wimp_StartTask
++#define Wimp_StartTask                  0x400DE
++#endif
++#ifndef Wimp_SendMessage
++#define Wimp_SendMessage                0x400E7
++#endif
++#ifndef TaskManager_TaskNameFromHandle
++#define TaskManager_TaskNameFromHandle  0x42680
++#endif
++
++#define WIMP_USER_MESSAGE 17
++#define MESSAGE_QUIT      0
++
++/************************************************************************//**
++  Send stdout and stderr to the file named by 'var', or discard them.
++****************************************************************************/
++void fc_riscos_redirect_output(const char *var)
++{
++  const char *name = getenv(var);
++  FILE *f;
++
++  if (name == NULL || name[0] == '\0') {
++    name = "/dev/null";
++  }
++
++  /* Empty the file, then have both streams append to it, so neither
++   * writes over what the other has written. */
++  f = fopen(name, "w");
++  if (f != NULL) {
++    fclose(f);
++  } else {
++    name = "/dev/null";
++  }
++
++  if (freopen(name, "a", stdout) != NULL) {
++    setvbuf(stdout, NULL, _IOLBF, 0);
++  }
++  if (freopen(name, "a", stderr) != NULL) {
++    setvbuf(stderr, NULL, _IONBF, 0);
++  }
++}
++
++/************************************************************************//**
++  Start a new task.
++****************************************************************************/
++int fc_riscos_start_task(const char *command, char *errbuf, size_t errbuf_len)
++{
++  _kernel_oserror *err;
++  int task = 0;
++
++  err = _swix(Wimp_StartTask, _IN(0) | _OUT(0), command, &task);
++  if (err != NULL) {
++    fc_strlcpy(errbuf, err->errmess, errbuf_len);
++
++    return -1;
++  }
++
++  return task;
++}
++
++/************************************************************************//**
++  Is the task still running?
++****************************************************************************/
++bool fc_riscos_task_alive(int task)
++{
++  const char *name;
++
++  if (task == 0 || task == -1) {
++    return FALSE;
++  }
++
++  /* The Task Manager returns an error for handles that are not
++   * (or no longer) in use. */
++  return _swix(TaskManager_TaskNameFromHandle, _IN(0) | _OUT(0),
++               task, &name) == NULL;
++}
++
++/************************************************************************//**
++  Send Message_Quit to a task.
++****************************************************************************/
++void fc_riscos_quit_task(int task)
++{
++  int block[5];
++
++  if (!fc_riscos_task_alive(task)) {
++    return;
++  }
++
++  block[0] = sizeof(block);     /* size */
++  block[1] = 0;                 /* sender (filled in by the Wimp) */
++  block[2] = 0;                 /* my_ref */
++  block[3] = 0;                 /* your_ref */
++  block[4] = MESSAGE_QUIT;      /* action */
++  (void) _swix(Wimp_SendMessage, _INR(0, 2),
++               WIMP_USER_MESSAGE, block, task);
++}
++
++#endif /* FREECIV_RISCOS */
+diff --git a/utility/fc_riscos.h b/utility/fc_riscos.h
+new file mode 100644
+index 0000000..dadc0a3
+--- /dev/null
++++ b/utility/fc_riscos.h
+@@ -0,0 +1,55 @@
++/***********************************************************************
++ Freeciv - Copyright (C) 1996 - A Kjeldberg, L Knutsen, U Wolfram
++   This program is free software; you can redistribute it and/or modify
++   it under the terms of the GNU General Public License as published by
++   the Free Software Foundation; either version 2, or (at your option)
++   any later version.
++
++   This program is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++   GNU General Public License for more details.
++***********************************************************************/
++
++/* RISC OS support: things the other platforms get from the C library or
++ * the process model, done with RISC OS calls. Everything here is only
++ * compiled when FREECIV_RISCOS is defined. */
++
++#ifndef FC__FC_RISCOS_H
++#define FC__FC_RISCOS_H
++
++#ifdef __cplusplus
++extern "C" {
++#endif /* __cplusplus */
++
++/* utility */
++#include "support.h"            /* bool type */
++
++#ifdef FREECIV_RISCOS
++
++/* A program running in the desktop must not print: the first character
++ * written to stdout or stderr opens a command window. Send both streams
++ * to the file named by the system variable 'var' (a UnixLib path, e.g.
++ * set in !Run with "Set Freeciv$Output /|<Wimp$ScrapDir>/FreecivLog"),
++ * or discard them if it isn't set. Call first thing in main(). */
++void fc_riscos_redirect_output(const char *var);
++
++/* Start 'command' as a new task with Wimp_StartTask. The caller must be
++ * a Wimp task. Returns the new task's handle, 0 if it has already
++ * finished, or -1 on error (message in errbuf). */
++int fc_riscos_start_task(const char *command, char *errbuf, size_t errbuf_len);
++
++/* Is the task with this handle still running? */
++bool fc_riscos_task_alive(int task);
++
++/* Ask the task to quit (Message_Quit). A TaskWindow quits and kills the
++ * program in it. */
++void fc_riscos_quit_task(int task);
++
++#endif /* FREECIV_RISCOS */
++
++#ifdef __cplusplus
++}
++#endif /* __cplusplus */
++
++#endif /* FC__FC_RISCOS_H */
+diff --git a/utility/support.c b/utility/support.c
+index f43dd18..8c58e82 100644
+--- a/utility/support.c
++++ b/utility/support.c
+@@ -822,8 +822,30 @@ const char *fc_strerror(fc_errno err)
+ /************************************************************************//**
+   Suspend execution for the specified number of microseconds.
+ ****************************************************************************/
++#ifdef FREECIV_RISCOS
++static void (*usleep_hook)(unsigned long usec) = NULL;
++
++/************************************************************************//**
++  RISC OS: have fc_usleep() call 'hook' instead. A desktop program must not
++  wait without calling Wimp_Poll, or every other task (including a server
++  started by the client) stops; the SDL client sets a hook that waits with
++  SDL_Delay(), which polls the Wimp.
++****************************************************************************/
++void fc_set_usleep_hook(void (*hook)(unsigned long usec))
++{
++  usleep_hook = hook;
++}
++#endif /* FREECIV_RISCOS */
++
+ void fc_usleep(unsigned long usec)
+ {
++#ifdef FREECIV_RISCOS
++  if (usleep_hook != NULL) {
++    usleep_hook(usec);
++    return;
++  }
++#endif /* FREECIV_RISCOS */
++
+ #ifdef HAVE_NANOSLEEP
+   struct timespec ts;
+ 
+diff --git a/utility/support.h b/utility/support.h
+index 16c2be1..a9f1b3c 100644
+--- a/utility/support.h
++++ b/utility/support.h
+@@ -181,6 +181,9 @@ int fc_stat(const char *filename, struct stat *buf);
+ fc_errno fc_get_errno(void);
+ const char *fc_strerror(fc_errno err);
+ void fc_usleep(unsigned long usec);
++#ifdef FREECIV_RISCOS
++void fc_set_usleep_hook(void (*hook)(unsigned long usec));
++#endif
+ 
+ bool fc_strrep(char *str, size_t len, const char *search,
+                const char *replace);

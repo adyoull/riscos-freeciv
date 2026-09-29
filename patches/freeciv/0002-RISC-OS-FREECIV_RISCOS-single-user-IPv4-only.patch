@@ -1,0 +1,79 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Andrew Youll <adyoull@users.noreply.github.com>
+Date: Tue, 29 Sep 2026 22:05:16 +0100
+Subject: [PATCH] RISC OS: FREECIV_RISCOS, single user, IPv4 only
+
+meson: host_system 'riscos' defines FREECIV_RISCOS (freeciv_config.h)
+and ALWAYS_ROOT (RISC OS has no users; UnixLib's uid means nothing).
+FREECIV_IPV6_SUPPORT is left out: UnixLib has getaddrinfo(), but the
+RISC OS Internet stack has no IPv6.
+
+netintf.c: in an IPv4-only build with getaddrinfo(),
+find_next_free_port() asked for AF_UNSPEC for FC_ADDR_ANY, unlike
+net_lookup_getaddrinfo(); it now asks for AF_INET too.
+---
+ gen_headers/meson_freeciv_config.h.in |  3 +++
+ meson.build                           | 11 +++++++++++
+ utility/netintf.c                     |  5 +++++
+ 3 files changed, 19 insertions(+)
+
+diff --git a/gen_headers/meson_freeciv_config.h.in b/gen_headers/meson_freeciv_config.h.in
+index 8153413..3e2c817 100644
+--- a/gen_headers/meson_freeciv_config.h.in
++++ b/gen_headers/meson_freeciv_config.h.in
+@@ -85,6 +85,9 @@
+ /* MS Windows host */
+ #mesondefine FREECIV_MSWINDOWS
+ 
++/* RISC OS */
++#mesondefine FREECIV_RISCOS
++
+ /* Native language support enabled */
+ #mesondefine FREECIV_ENABLE_NLS
+ 
+diff --git a/meson.build b/meson.build
+index 2ecac9e..1a1db11 100644
+--- a/meson.build
++++ b/meson.build
+@@ -335,6 +335,11 @@ else
+   if host_system == 'haiku'
+     net_dep = c_compiler.find_library('network')
+     priv_conf_data.set('ALWAYS_ROOT', 1)
++  elif host_system == 'riscos'
++    # RISC OS: single user, and no fork()/exec() (see connectdlg_common.c)
++    pub_conf_data.set('FREECIV_RISCOS', 1)
++    priv_conf_data.set('ALWAYS_ROOT', 1)
++    net_dep = []
+   else
+     net_dep = []
+   endif
+@@ -540,6 +545,12 @@ int main(void) { getaddrinfo(NULL, NULL, NULL, NULL); }''',
+   endif
+ endif
+ 
++if host_system == 'riscos'
++  # The RISC OS Internet stack has no IPv6; getaddrinfo() alone isn't
++  # enough (AF_INET6 sockets fail), so use the IPv4-only code.
++  pub_conf_data.set('FREECIV_IPV6_SUPPORT', false)
++endif
++
+ if c_compiler.has_header('libcharset.h', args: header_arg)
+   if c_compiler.has_function('locale_charset', args: ['-O'])
+     priv_conf_data.set('HAVE_LIBCHARSET', 1)
+diff --git a/utility/netintf.c b/utility/netintf.c
+index 344665d..5657451 100644
+--- a/utility/netintf.c
++++ b/utility/netintf.c
+@@ -580,7 +580,12 @@ int find_next_free_port(int starting_port, int highest_port,
+      break;
+ #endif /* FREECIV_IPV6_SUPPORT */
+    case FC_ADDR_ANY:
++#ifndef FREECIV_IPV6_SUPPORT
++     /* As in net_lookup_getaddrinfo(): IPv4-only build */
++     gafamily = AF_INET;
++#else
+      gafamily = AF_UNSPEC;
++#endif
+      break;
+    default:
+      fc_assert(FALSE);

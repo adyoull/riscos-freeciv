@@ -1,0 +1,50 @@
+Freeciv for RISC OS
+===================
+
+Freeciv is a free empire-building strategy game inspired by the history of
+human civilisation: build cities, research technologies, trade, make war
+and diplomacy, from the stone age to the space age. This is Freeciv 3.2.6
+with its SDL2 client, and the server to play against the computer.
+
+Web site: https://www.freeciv.org/
+
+Requirements
+------------
+- RISC OS 5 on an ARMv7 machine (Raspberry Pi 2/3/4/5, BeagleBoard, ...).
+- SharedUnixLibrary 1.16+ and ARMEABISupport (from PackMan).
+- About 80MB of free memory for a small game against the computer.
+- For sound: SharedSound (part of RISC OS), and StreamManager and
+  SharedSoundBuffer, in ssb.zip from
+  https://orac.co.uk/software/rdpclient/rdpclient.html (merge its !System).
+  John Duffell's own site (now on the Internet Archive) has more details:
+  https://web.archive.org/web/20110920080106/http://www.duffell.riscos.me.uk/
+  Without them the game is silent.
+
+Playing
+-------
+Double-click !Freeciv. Choose "Start new game" to play against the
+computer: the game starts its server in a TaskWindow ("Freeciv server" in
+the Task Manager), which closes when you leave the game. The desktop keeps
+running while you play.
+
+Client options, saved games and any extra data (tilesets, rulesets) go in
+<Choices$Write>.Freeciv. Saved games are in <Choices$Write>.Freeciv.saves.
+
+Notes and limits
+----------------
+- Play in a window (the default, 1024x768; change the size in the
+  client's options). In full screen the desktop stops, so the server's
+  TaskWindow can't run either: a game against the computer can't start.
+- English only in this build.
+- The server list from the Internet (metaserver) and modpack downloads
+  need https, which this build doesn't have yet. You can still connect to
+  a server by name.
+- If something goes wrong, turn on logging (see !Run) and look at
+  <Wimp$ScrapDir>.FreecivLog and FreecivSrvLog.
+
+Licences
+--------
+Freeciv is free software under the GNU General Public License, version 2
+or later (docs.COPYING). The source code, and the patches and scripts used
+to build this port, are at https://github.com/adyoull/riscos-freeciv. The
+licences of the libraries linked in are in the docs directory.

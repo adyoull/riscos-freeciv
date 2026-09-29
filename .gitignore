@@ -1,0 +1,11 @@
+dl/
+src/
+stage/
+hosttools/
+devkit/
+dist/
+handoffs/
+*handoff*.md
+CLAUDE.md
+*START-HERE*.md
+.DS_Store

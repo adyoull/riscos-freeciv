@@ -1,0 +1,29 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Andrew Youll <adyoull@users.noreply.github.com>
+Date: Tue, 29 Sep 2026 22:21:07 +0100
+Subject: [PATCH] RISC OS: the SDL2 client opens a 1024x768 window by default
+
+The default 640x480 is a small window on the desktops RISC OS machines
+run today (1920x1080 on a Pi). The size can still be changed in the
+client's options; saved options keep their value.
+---
+ client/options.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/client/options.c b/client/options.c
+index b1c9733..d2cde0c 100644
+--- a/client/options.c
++++ b/client/options.c
+@@ -355,7 +355,12 @@ struct client_options gui_options = {
+ /* gui-sdl2 client specific options. */
+   .gui_sdl2_default_theme_name = FC_SDL2_DEFAULT_THEME_NAME,
+   .gui_sdl2_fullscreen = FALSE,
++#ifdef FREECIV_RISCOS
++  /* A desktop window; 640x480 is small on today's RISC OS screens */
++  .gui_sdl2_screen = VIDEO_MODE(1024, 768),
++#else
+   .gui_sdl2_screen = VIDEO_MODE(640, 480),
++#endif
+   .gui_sdl2_swrenderer = FALSE,
+   .gui_sdl2_do_cursor_animation = TRUE,
+   .gui_sdl2_use_color_cursors = TRUE,

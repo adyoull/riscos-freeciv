@@ -1,0 +1,314 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Andrew Youll <adyoull@users.noreply.github.com>
+Date: Tue, 29 Sep 2026 21:54:45 +0100
+Subject: [PATCH] Build without ICU on RISC OS
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+ICU (icu-uc) is used only by utility/support.c, for fc_strcasecmp(),
+fc_strncasecmp() and fc_strlcpy(). A static ICU for RISC OS would add
+tens of megabytes of data for three functions, so on host_system
+'riscos' meson doesn't look for ICU and defines FREECIV_NO_ICU, and
+support.c uses its own UTF-8 versions: simple case folding for Latin,
+Greek and Cyrillic plus "ß" -> "ss", and truncation on a character
+boundary. On every pair of nation and city names in the rulesets the
+comparisons agree with ICU's (riscos-freeciv tests/no-icu).
+---
+ gen_headers/meson_fc_config.h.in |   3 +
+ meson.build                      |   8 +-
+ utility/support.c                | 207 +++++++++++++++++++++++++++++++
+ 3 files changed, 217 insertions(+), 1 deletion(-)
+
+diff --git a/gen_headers/meson_fc_config.h.in b/gen_headers/meson_fc_config.h.in
+index 084e064..334572f 100644
+--- a/gen_headers/meson_fc_config.h.in
++++ b/gen_headers/meson_fc_config.h.in
+@@ -86,6 +86,9 @@
+ /* Can run programs as root */
+ #mesondefine ALWAYS_ROOT
+ 
++/* Build without ICU (utility/support.c has its own UTF-8 code) */
++#mesondefine FREECIV_NO_ICU
++
+ /* Have magickwand mapimg toolkit */
+ #mesondefine HAVE_MAPIMG_MAGICKWAND
+ 
+diff --git a/meson.build b/meson.build
+index 6ef99c4..2ecac9e 100644
+--- a/meson.build
++++ b/meson.build
+@@ -686,7 +686,13 @@ else
+   if not c_compiler.has_header('zlib.h', args: header_arg)
+     error('Mandatory header zlib.h not found!')
+   endif
+-  icu_dep = dependency('icu-uc')
++  if host_system == 'riscos'
++    # No ICU on RISC OS: utility/support.c has UTF-8 code of its own.
++    icu_dep = []
++    priv_conf_data.set('FREECIV_NO_ICU', 1)
++  else
++    icu_dep = dependency('icu-uc')
++  endif
+   syslua = get_option('syslua')
+   if syslua != 'false'
+     lua_dep_tmp = dependency('lua-5.4', 'lua-54', 'lua54', 'lua5.4', required:false)
+diff --git a/utility/support.c b/utility/support.c
+index 042568b..f43dd18 100644
+--- a/utility/support.c
++++ b/utility/support.c
+@@ -98,8 +98,10 @@
+ #include <zlib.h>
+ #endif
+ 
++#ifndef FREECIV_NO_ICU
+ /* ICU */
+ #include "unicode/ustring.h"
++#endif /* FREECIV_NO_ICU */
+ 
+ /* utility */
+ #include "fciconv.h"
+@@ -113,10 +115,12 @@
+ 
+ static bool support_initialized = FALSE;
+ 
++#ifndef FREECIV_NO_ICU
+ static int icu_buffer_uchars = 0;
+ static UChar *icu_buffer1 = NULL;
+ static UChar *icu_buffer2 = NULL;
+ fc_mutex icu_buffer_mutex;
++#endif /* FREECIV_NO_ICU */
+ 
+ #ifndef HAVE_WORKING_VSNPRINTF
+ static char *vsnprintf_buf = NULL;
+@@ -127,6 +131,7 @@ static fc_mutex vsnprintf_mutex;
+ static fc_mutex localtime_mutex;
+ #endif /* HAVE_LOCALTIME_R */
+ 
++#ifndef FREECIV_NO_ICU
+ /************************************************************************//**
+   Initial allocation of string comparison buffers.
+ ****************************************************************************/
+@@ -287,6 +292,185 @@ int fc_strncasecmp(const char *str0, const char *str1, size_t n)
+   return ret;
+ }
+ 
++#else  /* FREECIV_NO_ICU */
++
++/* Builds without ICU (RISC OS): the same functions written directly on
++ * UTF-8. Case-insensitive comparison uses simple one-to-one case folding
++ * for the scripts Freeciv's translations and nation names use most (Latin,
++ * Greek, Cyrillic), plus "ß" == "ss"; ICU's other multi-character
++ * foldings are not done.
++ * Malformed UTF-8 bytes are treated as U+FFFD, like ICU's lenient mode. */
++
++static void fc_strAPI_init(void)
++{
++}
++
++static void fc_strAPI_free(void)
++{
++}
++
++/* Decode the code point at *s and advance *s past it. */
++static unsigned fc_utf8_next(const char **s)
++{
++  const unsigned char *p = (const unsigned char *) *s;
++  unsigned c = p[0];
++  int len, i;
++
++  if (c < 0x80) {
++    *s += 1;
++    return c;
++  } else if (c >= 0xC2 && c <= 0xDF) {
++    len = 2; c &= 0x1F;
++  } else if (c >= 0xE0 && c <= 0xEF) {
++    len = 3; c &= 0x0F;
++  } else if (c >= 0xF0 && c <= 0xF4) {
++    len = 4; c &= 0x07;
++  } else {
++    *s += 1;
++    return 0xFFFD;
++  }
++  for (i = 1; i < len; i++) {
++    if ((p[i] & 0xC0) != 0x80) {
++      *s += i;
++      return 0xFFFD;
++    }
++    c = (c << 6) | (p[i] & 0x3F);
++  }
++  *s += len;
++  return c;
++}
++
++/* Simple case folding (to lower case) for the common alphabets. */
++static unsigned fc_simple_fold(unsigned c)
++{
++  if (c < 0x80) {
++    return (c >= 'A' && c <= 'Z') ? c + 32 : c;
++  }
++  if (c >= 0xC0 && c <= 0xDE && c != 0xD7) {
++    return c + 32;                              /* Latin-1 */
++  }
++  if (c >= 0x100 && c <= 0x17F) {               /* Latin Extended-A */
++    if ((c <= 0x137 || (c >= 0x14A && c <= 0x177)) && !(c & 1)) {
++      return c + 1;
++    }
++    if (((c >= 0x139 && c <= 0x148) || (c >= 0x179 && c <= 0x17E)) && (c & 1)) {
++      return c + 1;
++    }
++    if (c == 0x178) {
++      return 0xFF;
++    }
++    return c;
++  }
++  if (c >= 0x386 && c <= 0x3AB) {               /* Greek */
++    if (c >= 0x391 && c != 0x3A2) {
++      return c + 32;
++    }
++    if (c == 0x386) {
++      return 0x3AC;
++    }
++    if (c >= 0x388 && c <= 0x38A) {
++      return c + 37;
++    }
++    if (c == 0x38C) {
++      return 0x3CC;
++    }
++    if (c == 0x38E || c == 0x38F) {
++      return c + 63;
++    }
++    return c;
++  }
++  if (c == 0x3C2) {
++    return 0x3C3;                               /* final sigma */
++  }
++  if (c >= 0x400 && c <= 0x42F) {               /* Cyrillic */
++    return c < 0x410 ? c + 80 : c + 32;
++  }
++  if (((c >= 0x460 && c <= 0x481) || (c >= 0x48A && c <= 0x4BF)
++       || (c >= 0x1E00 && c <= 0x1E95) || (c >= 0x1EA0 && c <= 0x1EFF))
++      && !(c & 1)) {
++    return c + 1;                               /* Cyrillic, Vietnamese */
++  }
++  return c;
++}
++
++/* Next case-folded code point of a string; 0 at the end. "ß" and "ẞ"
++ * fold to "ss", as in ICU's full case folding. */
++struct fc_fold_iter {
++  const char *s;
++  unsigned pending;
++};
++
++static unsigned fc_fold_next(struct fc_fold_iter *it)
++{
++  unsigned c;
++
++  if (it->pending != 0) {
++    c = it->pending;
++    it->pending = 0;
++    return c;
++  }
++  if (*it->s == '\0') {
++    return 0;
++  }
++  c = fc_simple_fold(fc_utf8_next(&it->s));
++  if (c == 0xDF || c == 0x1E9E) {
++    it->pending = 's';
++    return 's';
++  }
++  return c;
++}
++
++/* Compare at most n (folded) code points of two UTF-8 strings,
++ * ignoring case. */
++static int fc_utf8_casecmp(const char *str0, const char *str1, size_t n)
++{
++  struct fc_fold_iter it0 = { str0, 0 };
++  struct fc_fold_iter it1 = { str1, 0 };
++
++  while (n-- > 0) {
++    unsigned c0 = fc_fold_next(&it0);
++    unsigned c1 = fc_fold_next(&it1);
++
++    if (c0 != c1) {
++      return c0 < c1 ? -1 : 1;
++    }
++    if (c0 == 0) {
++      return 0;
++    }
++  }
++  return 0;
++}
++
++/************************************************************************//**
++  Compare strings like strcmp(), but ignoring case. UTF8 aware.
++****************************************************************************/
++int fc_strcasecmp(const char *str0, const char *str1)
++{
++  if (str0 == NULL) {
++    return -1;
++  }
++  if (str1 == NULL) {
++    return 1;
++  }
++  return fc_utf8_casecmp(str0, str1, (size_t) -1);
++}
++
++/************************************************************************//**
++  Compare strings like strncmp(), but ignoring case.
++  i.e. only compares first n chars. UTF8 aware.
++****************************************************************************/
++int fc_strncasecmp(const char *str0, const char *str1, size_t n)
++{
++  if (str0 == NULL) {
++    return -1;
++  }
++  if (str1 == NULL) {
++    return 1;
++  }
++  return fc_utf8_casecmp(str0, str1, n);
++}
++#endif /* FREECIV_NO_ICU */
++
+ /************************************************************************//**
+   Copies a string and convert the following characters:
+   - '\n' to "\\n".
+@@ -790,6 +974,28 @@ bool fc_strrep(char *str, size_t len, const char *search,
+ ****************************************************************************/
+ size_t fc_strlcpy(char *dest, const char *src, size_t n)
+ {
++#ifdef FREECIV_NO_ICU
++  size_t len;
++  size_t cpy;
++
++  fc_assert_ret_val(NULL != dest, -1);
++  fc_assert_ret_val(NULL != src, -1);
++  fc_assert_ret_val(0 < n, -1);
++
++  /* Truncate on a character boundary, as ICU's conversion does. */
++  len = strlen(src);
++  cpy = len;
++  if (cpy > n - 1) {
++    cpy = n - 1;
++    while (cpy > 0 && ((unsigned char) src[cpy] & 0xC0) == 0x80) {
++      cpy--;
++    }
++  }
++  memmove(dest, src, cpy);
++  dest[cpy] = '\0';
++
++  return len;
++#else  /* FREECIV_NO_ICU */
+   bool enough_mem = FALSE;
+   int slen;
+   int dlen;
+@@ -825,6 +1031,7 @@ size_t fc_strlcpy(char *dest, const char *src, size_t n)
+   dest[n - 1] = '\0';
+ 
+   return dlen;
++#endif /* FREECIV_NO_ICU */
+ }
+ 
+ /************************************************************************//**
