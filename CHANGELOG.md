@@ -1,5 +1,20 @@
 # Changes
 
+## 3.2.6-riscos3test (2026-09-29)
+
+riscos2test on the Pi: runs (with !CivServer), but slow; the wheel and
+resolution changes did nothing. Patch 0006:
+
+- Screen updates: only the parts that changed are copied into the window
+  and plotted, instead of the whole window through a texture and SDL's
+  software renderer for every update (a button, the mouse pointer, a
+  blinking unit).
+- Mouse wheel: scrolls the map (Shift: sideways) and lists in dialogs.
+- Screen resolution: changes the window size at once; on RISC OS the list
+  offers window sizes up to the desktop's.
+- With Freeciv$Log set, the log says every 10 s how busy the client was
+  and what drawing cost.
+
 ## 3.2.6-riscos2test (2026-09-29)
 
 riscos1test on the Pi: "Start new game" didn't get a server going.

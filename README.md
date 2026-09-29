@@ -23,14 +23,16 @@ earlier RISC OS ports) and a simpler automatic start.
 | Toolchain | riscos-crossdev 1.0 (GCCSDK GCC 10.2) with UnixLib 5.0.2 |
 
 **Why not OpenGL/EGL?** Freeciv's SDL2 client draws everything in software
-into one surface and then shows it with one texture upload and copy per
-frame. On RISC OS the GL would be Mesa running in software too, so routing
-that copy through GL would only add work. The devkit's SDL2 has no GL
-renderer compiled in, so SDL uses its software renderer and the Wimp
-framebuffer path (as OpenTTD does). The SDL library still contains the
-riscos-mesa GL code (about 4MB of the client's 13MB of code), because the
-devkit's SDL calls into Mesa; an SDL built without GL (like OpenTTD's) would
-drop it.
+into one surface. On RISC OS any GL is Mesa running in software too, so
+drawing through GL would only add work. riscos-mesa's EGL speed-ups (a
+scaled render size, hardware overlays; SDL's opt-in EGL path from devkit
+10a) apply to GL windows, and would at best replace the final plot. What
+costs most is how much is copied and plotted per update, so on RISC OS the
+client copies only the changed parts into SDL's window framebuffer (patch
+0006), which the riscos-mesa SDL driver plots with a Wimp_UpdateWindow per
+area. The SDL library still contains the riscos-mesa GL code (about 4MB of
+the client's 13MB of code), because the devkit's SDL calls into Mesa; an
+SDL built without GL (like OpenTTD's) would drop it.
 
 ### RISC OS changes (patches/freeciv)
 
@@ -49,6 +51,9 @@ drop it.
 5. **Server started by hand.** If a server answers on 127.0.0.1:5556
    (started with `!CivServer`), "Start new game" plays on it. The automatic
    start finds the program through `Freeciv$Path` and binds to 127.0.0.1.
+6. **SDL2 client:** only the changed parts of the screen are copied and
+   plotted (no texture/renderer), mouse wheel for the map and dialog
+   lists, resolution changes at once.
 
 ## Building
 

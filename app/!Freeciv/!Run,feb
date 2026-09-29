@@ -29,6 +29,8 @@ Set FreecivServer$WimpSlot 36000K
 | Normally nothing is logged. For a log, remove the | from the next line
 | (or *Set Freeciv$Log 1 before running): the client writes to
 | <Wimp$ScrapDir>.FreecivLog and the server to <Wimp$ScrapDir>.FreecivSrvLog.
+| Every 10 seconds the client's log also says how busy it was and what
+| drawing the window cost ("RISC OS: in 10.0 s, busy ...").
 | Set Freeciv$Log 1
 Set Freeciv$Output /dev/null
 Unset FreecivServer$Output

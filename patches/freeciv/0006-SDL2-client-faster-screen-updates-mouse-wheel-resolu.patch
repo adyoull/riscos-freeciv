@@ -1,0 +1,641 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 29 Sep 2026 23:36:55 +0100
+Subject: [PATCH] SDL2 client: faster screen updates, mouse wheel, resolution
+ changes
+
+From the riscos2test report on a Pi 4: slow, the scroll wheel did
+nothing and changing the resolution had no effect.
+
+Screen updates (graphics.c; always on RISC OS, elsewhere with
+-DFREECIV_SDL2_DIRECT_PRESENT):
+- Upstream uploads the whole main surface to a texture and copies all
+  of it through the renderer for every update, even a button or the
+  mouse pointer. On RISC OS that is a software copy with colour
+  conversion plus a sprite plot of the whole window each time.
+- Now there is no renderer: the main surface has the window
+  framebuffer's colour order (plus alpha, which create_surf() copies),
+  screen_blit() records the areas it changes, and update_main_screen()
+  copies just those into SDL_GetWindowSurface() and shows them with
+  SDL_UpdateWindowSurfaceRects() (a Wimp_UpdateWindow per area; over 32
+  areas, their bounding box).
+- Checked on Linux (X11): the same pixels as upstream on the pregame
+  page, and the game, dialogs and scrolling look right.
+
+Mouse wheel (gui_main.c, widget_scrollbar.c, widget.c): upstream's SDL2
+client ignored SDL_MOUSEWHEEL. Over a dialog with a scrolled list (the
+standard scroll buttons) it scrolls the list, 2 rows a step; over the
+map it scrolls the map, a quarter of the view a step (Shift or a
+sideways wheel: left and right).
+
+Resolution (gui_main.c, optiondlg.c): changing "Screen resolution"
+only moved the widgets; the window size changed only after a restart.
+It now resizes the window and its surfaces at once, as the full screen
+option does. On RISC OS, in a window, the list offers the usual window
+sizes that fit the desktop (the display driver lists few modes).
+
+Log (RISC OS, with --debug 3): every 10 s, how busy the client was and
+how many screen updates, pixels and milliseconds showing them took.
+---
+ client/gui-sdl2/graphics.c         | 157 +++++++++++++++++++++++++++++
+ client/gui-sdl2/graphics.h         |   3 +
+ client/gui-sdl2/gui_main.c         | 128 ++++++++++++++++++++++-
+ client/gui-sdl2/optiondlg.c        |  30 ++++++
+ client/gui-sdl2/widget.c           |   8 ++
+ client/gui-sdl2/widget.h           |   1 +
+ client/gui-sdl2/widget_scrollbar.c |  75 ++++++++++++++
+ client/gui-sdl2/widget_scrollbar.h |   1 +
+ 8 files changed, 401 insertions(+), 2 deletions(-)
+
+diff --git a/client/gui-sdl2/graphics.c b/client/gui-sdl2/graphics.c
+index 79a1267..36fca18 100644
+--- a/client/gui-sdl2/graphics.c
++++ b/client/gui-sdl2/graphics.c
+@@ -52,12 +52,77 @@
+ 
+ /* ------------------------------ */
+ 
++/* DIRECT_PRESENT: copy the changed parts of the main surface straight into
++ * the window's framebuffer instead of a texture and renderer. Always on
++ * RISC OS; -DFREECIV_SDL2_DIRECT_PRESENT turns it on elsewhere (for
++ * testing it on other systems). */
++#if defined(FREECIV_RISCOS) || defined(FREECIV_SDL2_DIRECT_PRESENT)
++#define DIRECT_PRESENT
++#endif
++
+ struct sdl2_data main_data;
+ 
+ static SDL_Surface *main_surface = NULL;
+ 
+ static bool render_dirty = TRUE;
+ 
++#ifdef DIRECT_PRESENT
++/* The main surface is copied straight into the window's
++ * framebuffer (SDL_GetWindowSurface), and only the parts that changed are
++ * copied and shown. Upstream uploads the whole screen to a texture and
++ * copies all of it through a software renderer for every update, even
++ * for a mouse pointer or a button, which on a RISC OS machine (software
++ * rendering, then a sprite plot for every update) costs a whole-window
++ * redraw each time. */
++#define PRESENT_RECT_LIMIT 32
++static SDL_Rect present_rects[PRESENT_RECT_LIMIT];
++static int present_count = 0;
++static bool present_all = TRUE;
++
++/* Statistics for the log (see direct_present_stats()) */
++static Uint32 stat_updates = 0;
++static Uint64 stat_pixels = 0;
++static Uint64 stat_ticks = 0;
++
++/**********************************************************************//**
++  Updates shown, pixels copied and time spent (ms) since the last call.
++**************************************************************************/
++void direct_present_stats(Uint32 *updates, Uint64 *pixels, double *ms)
++{
++  *updates = stat_updates;
++  *pixels = stat_pixels;
++  *ms = stat_ticks * 1000.0 / SDL_GetPerformanceFrequency();
++  stat_updates = 0;
++  stat_pixels = 0;
++  stat_ticks = 0;
++}
++
++/**********************************************************************//**
++  Remember a changed part of the main surface.
++**************************************************************************/
++static void present_add(const SDL_Rect *r)
++{
++  if (present_all || r->w <= 0 || r->h <= 0) {
++    return;
++  }
++  if (present_count == PRESENT_RECT_LIMIT) {
++    /* Too many to show one by one: show their bounding box. */
++    int i, x0 = r->x, y0 = r->y, x1 = r->x + r->w, y1 = r->y + r->h;
++
++    for (i = 0; i < present_count; i++) {
++      x0 = MIN(x0, present_rects[i].x);
++      y0 = MIN(y0, present_rects[i].y);
++      x1 = MAX(x1, present_rects[i].x + present_rects[i].w);
++      y1 = MAX(y1, present_rects[i].y + present_rects[i].h);
++    }
++    present_rects[0] = (SDL_Rect){x0, y0, x1 - x0, y1 - y0};
++    present_count = 1;
++    return;
++  }
++  present_rects[present_count++] = *r;
++}
++#endif /* DIRECT_PRESENT */
++
+ /**********************************************************************//**
+   Allocate new gui_layer.
+ **************************************************************************/
+@@ -223,7 +288,20 @@ int screen_blit(SDL_Surface *src, SDL_Rect *srcrect, SDL_Rect *dstrect,
+ {
+   render_dirty = TRUE;
+ 
++#ifdef DIRECT_PRESENT
++  {
++    /* SDL_BlitSurface() leaves the clipped destination in the rect */
++    SDL_Rect whole = {0, 0, 0, 0};
++    SDL_Rect *dst = (dstrect != NULL) ? dstrect : &whole;
++    int ret = alphablit(src, srcrect, main_surface, dst, alpha_mod);
++
++    present_add(dst);
++
++    return ret;
++  }
++#else  /* DIRECT_PRESENT */
+   return alphablit(src, srcrect, main_surface, dstrect, alpha_mod);
++#endif /* DIRECT_PRESENT */
+ }
+ 
+ /**********************************************************************//**
+@@ -540,6 +618,9 @@ void init_sdl(int flags)
+ **************************************************************************/
+ static void free_surfaces(void)
+ {
++#ifdef DIRECT_PRESENT
++  FREESURFACE(main_surface);
++#endif
+   if (main_data.renderer != NULL) {
+     SDL_DestroyRenderer(main_data.renderer);
+     main_data.renderer = NULL;
+@@ -553,10 +634,44 @@ static void free_surfaces(void)
+ **************************************************************************/
+ bool create_surfaces(int width, int height)
+ {
++#ifndef DIRECT_PRESENT
+   unsigned flags;
++#endif
+ 
+   free_surfaces();
+ 
++#ifdef DIRECT_PRESENT
++  {
++    /* The main surface gets the window framebuffer's colour order (plus
++     * alpha: create_surf() and friends copy its format, and sprites need
++     * alpha), so presenting is a plain copy. */
++    SDL_Surface *ws = SDL_GetWindowSurface(main_data.screen);
++    Uint32 rm = 0x000000FF, gm = 0x0000FF00, bm = 0x00FF0000;
++
++    if (ws == NULL) {
++      log_fatal(_("Failed to get the window surface: %s"), SDL_GetError());
++      return FALSE;
++    }
++    if (ws->format->BytesPerPixel == 4) {
++      rm = ws->format->Rmask;
++      gm = ws->format->Gmask;
++      bm = ws->format->Bmask;
++    }
++    main_surface = SDL_CreateRGBSurface(0, width, height, 32,
++                                        rm, gm, bm, ~(rm | gm | bm));
++    FREESURFACE(main_data.map);
++    main_data.map = SDL_CreateRGBSurface(0, width, height, 32,
++                                         rm, gm, bm, ~(rm | gm | bm));
++    if (main_surface == NULL || main_data.map == NULL) {
++      log_fatal(_("Failed to create RGB surface: %s"), SDL_GetError());
++      return FALSE;
++    }
++    main_data.renderer = NULL;
++    main_data.maintext = NULL;
++    present_all = TRUE;
++    render_dirty = TRUE;
++  }
++#else  /* DIRECT_PRESENT */
+   if (is_bigendian()) {
+     main_surface = SDL_CreateRGBSurface(0, width, height, 32,
+                                         0x0000FF00, 0x00FF0000,
+@@ -601,6 +716,7 @@ bool create_surfaces(int width, int height)
+     log_fatal(_("Failed to create texture: %s"), SDL_GetError());
+     return FALSE;
+   }
++#endif /* DIRECT_PRESENT */
+ 
+   if (main_data.gui) {
+     FREESURFACE(main_data.gui->surface);
+@@ -666,6 +782,47 @@ bool set_video_mode(unsigned width, unsigned height, unsigned flags_in)
+ **************************************************************************/
+ void update_main_screen(void)
+ {
++#ifdef DIRECT_PRESENT
++  if (render_dirty) {
++    SDL_Surface *ws = SDL_GetWindowSurface(main_data.screen);
++    SDL_BlendMode mode;
++    Uint64 t0 = SDL_GetPerformanceCounter();
++    int i;
++
++    if (ws == NULL) {
++      return;
++    }
++    /* A copy, not a blend (as upstream's texture upload) */
++    SDL_GetSurfaceBlendMode(main_surface, &mode);
++    SDL_SetSurfaceBlendMode(main_surface, SDL_BLENDMODE_NONE);
++    SDL_SetSurfaceAlphaMod(main_surface, 255);
++    if (present_all || ws->w != main_surface->w || ws->h != main_surface->h) {
++      SDL_BlitSurface(main_surface, NULL, ws, NULL);
++      SDL_UpdateWindowSurface(main_data.screen);
++      stat_pixels += (Uint64) ws->w * ws->h;
++    } else {
++      for (i = 0; i < present_count; i++) {
++        SDL_Rect r = present_rects[i];
++
++        SDL_BlitSurface(main_surface, &present_rects[i], ws, &r);
++        present_rects[i] = r;
++        stat_pixels += (Uint64) r.w * r.h;
++      }
++      if (present_count > 0) {
++        SDL_UpdateWindowSurfaceRects(main_data.screen, present_rects,
++                                     present_count);
++      }
++    }
++    SDL_SetSurfaceBlendMode(main_surface, mode);
++    present_count = 0;
++    present_all = FALSE;
++    render_dirty = FALSE;
++    stat_updates++;
++    stat_ticks += SDL_GetPerformanceCounter() - t0;
++  }
++  return;
++#endif /* DIRECT_PRESENT */
++
+   if (render_dirty) {
+     SDL_UpdateTexture(main_data.maintext, NULL,
+                       main_surface->pixels, main_surface->pitch);
+diff --git a/client/gui-sdl2/graphics.h b/client/gui-sdl2/graphics.h
+index b294ccc..5740b03 100644
+--- a/client/gui-sdl2/graphics.h
++++ b/client/gui-sdl2/graphics.h
+@@ -286,6 +286,9 @@ bool set_video_mode(unsigned width, unsigned height, unsigned flags);
+ bool create_surfaces(int width, int height);
+ 
+ void update_main_screen(void);
++#if defined(FREECIV_RISCOS) || defined(FREECIV_SDL2_DIRECT_PRESENT)
++void direct_present_stats(Uint32 *updates, Uint64 *pixels, double *ms);
++#endif
+ 
+ int main_window_width(void);
+ int main_window_height(void);
+diff --git a/client/gui-sdl2/gui_main.c b/client/gui-sdl2/gui_main.c
+index fdbcd0f..151370e 100644
+--- a/client/gui-sdl2/gui_main.c
++++ b/client/gui-sdl2/gui_main.c
+@@ -63,6 +63,8 @@
+ /* client */
+ #include "client_main.h"
+ #include "climisc.h"
++#include "mapview_common.h"
++#include "pages_g.h"
+ #include "clinet.h"
+ #include "editgui_g.h"
+ #include "tilespec.h"
+@@ -130,6 +132,12 @@ static bool autoconnect = FALSE;
+ static bool is_map_scrolling = FALSE;
+ static enum direction8 scroll_dir;
+ 
++static void handle_mouse_wheel(const SDL_MouseWheelEvent *wheel);
++#ifdef FREECIV_RISCOS
++static void riscos_idle_delay(Uint32 ms);
++static void riscos_log_stats(void);
++#endif
++
+ static struct finger_behavior finger_behavior;
+ static struct mouse_button_behavior button_behavior;
+ 
+@@ -669,13 +677,21 @@ widget_id gui_event_loop(void *data,
+ #ifdef FREECIV_RISCOS
+         else if (SDL_PeepEvents(NULL, 0, SDL_PEEKEVENT,
+                                 SDL_FIRSTEVENT, SDL_LASTEVENT) <= 0) {
+-          SDL_Delay(10);
++          riscos_idle_delay(10);
+         }
+ #endif
+       }
+     } else { /* If connection is not establish */
++#ifdef FREECIV_RISCOS
++      riscos_idle_delay(10);
++#else
+       SDL_Delay(10);
++#endif
+     }
++
++#ifdef FREECIV_RISCOS
++    riscos_log_stats();
++#endif
+     /* ========================================= */
+ 
+     t_current = SDL_GetTicks();
+@@ -869,6 +885,10 @@ widget_id gui_event_loop(void *data,
+             ID = mouse_motion_handler(&main_data.event.motion, data);
+           }
+           break;
++
++        case SDL_MOUSEWHEEL:
++          handle_mouse_wheel(&main_data.event.wheel);
++          break;
+         }
+       }
+     }
+@@ -898,6 +918,51 @@ widget_id gui_event_loop(void *data,
+ /**********************************************************************//**
+   Do any necessary pre-initialization of the UI, if necessary.
+ **************************************************************************/
++#ifdef FREECIV_RISCOS
++/* Time spent waiting (SDL_Delay: other tasks, and the server, run) */
++static Uint64 riscos_idle_ticks = 0;
++
++/**********************************************************************//**
++  RISC OS: wait, polling the Wimp, and count the time as idle.
++**************************************************************************/
++static void riscos_idle_delay(Uint32 ms)
++{
++  Uint64 t0 = SDL_GetPerformanceCounter();
++
++  SDL_Delay(ms);
++  riscos_idle_ticks += SDL_GetPerformanceCounter() - t0;
++}
++
++/**********************************************************************//**
++  RISC OS: every 10 seconds, log how busy the client was and what showing
++  the picture cost (with Freeciv$Log set, in <Wimp$ScrapDir>.FreecivLog).
++**************************************************************************/
++static void riscos_log_stats(void)
++{
++  static Uint64 last = 0;
++  Uint64 now = SDL_GetPerformanceCounter();
++  Uint64 freq = SDL_GetPerformanceFrequency();
++
++  if (last == 0) {
++    last = now;
++    riscos_idle_ticks = 0;
++  } else if (now - last >= 10 * freq) {
++    Uint32 updates;
++    Uint64 pixels;
++    double ms;
++
++    direct_present_stats(&updates, &pixels, &ms);
++    log_verbose("RISC OS: in %.1f s, busy %.0f%%; %u screen updates, "
++                "%.1f Mpixels, %.0f ms",
++                (double) (now - last) / freq,
++                100.0 - 100.0 * riscos_idle_ticks / (now - last),
++                (unsigned) updates, pixels / 1e6, ms);
++    last = now;
++    riscos_idle_ticks = 0;
++  }
++}
++#endif /* FREECIV_RISCOS */
++
+ #ifdef FREECIV_RISCOS
+ /**********************************************************************//**
+   RISC OS: fc_usleep() hook. SDL_Delay() polls the Wimp while it waits,
+@@ -905,7 +970,7 @@ widget_id gui_event_loop(void *data,
+ **************************************************************************/
+ static void riscos_usleep(unsigned long usec)
+ {
+-  SDL_Delay((usec + 999) / 1000);
++  riscos_idle_delay((usec + 999) / 1000);
+ }
+ #endif /* FREECIV_RISCOS */
+ 
+@@ -928,6 +993,52 @@ void ui_init(void)
+   init_sdl(sdl_flags);
+ }
+ 
++/**********************************************************************//**
++  The mouse wheel scrolls a list in the dialog under the pointer (dialogs
++  with the standard scroll buttons), or the map (a quarter of the view per
++  step; with Shift, or a sideways wheel, left and right) when the pointer
++  is over the map and not over a window or button. Upstream's SDL2 client
++  ignored the wheel.
++**************************************************************************/
++static void handle_mouse_wheel(const SDL_MouseWheelEvent *wheel)
++{
++  int x, y, dx, dy;
++
++  dx = wheel->x;
++  dy = -wheel->y;
++  if (wheel->direction == SDL_MOUSEWHEEL_FLIPPED) {
++    dx = -dx;
++    dy = -dy;
++  }
++
++  SDL_GetMouseState(&x, &y);
++
++  /* Over a dialog with a list: scroll the list, 2 rows a step */
++  if (dy != 0 && wheel_scroll_advanced_dialog(x, y, 2 * dy)) {
++    return;
++  }
++  if (find_next_widget_at_pos(NULL, x, y) != NULL) {
++    return;
++  }
++
++  /* Otherwise, over the map: scroll the map */
++  if (C_S_RUNNING != client_state() || get_client_page() != PAGE_GAME
++      || !can_client_change_view()) {
++    return;
++  }
++  if (SDL_GetModState() & KMOD_SHIFT) {
++    dx = dy;
++    dy = 0;
++  }
++  if (dx == 0 && dy == 0) {
++    return;
++  }
++
++  set_mapview_origin(mapview.gui_x0 + dx * mapview.width / 4,
++                     mapview.gui_y0 + dy * mapview.height / 4,
++                     map_zoom);
++}
++
+ /**********************************************************************//**
+   Really resize the main window.
+ **************************************************************************/
+@@ -968,6 +1079,19 @@ static void real_resize_window_callback(void *data)
+ **************************************************************************/
+ static void resize_window_callback(struct option *poption)
+ {
++  /* Upstream only moved the widgets, so a new size took effect only after
++   * a restart. Resize the window and its surfaces now, as
++   * fullscreen_callback() does. */
++  if (!GUI_SDL_OPTION(fullscreen)) {
++    int w = GUI_SDL_OPTION(screen.width);
++    int h = GUI_SDL_OPTION(screen.height);
++
++    SDL_SetWindowSize(main_data.screen, w, h);
++    if (!create_surfaces(w, h)) {
++      log_error("Can't resize the window to %dx%d", w, h);
++    }
++  }
++
+   update_queue_add(real_resize_window_callback, NULL);
+ }
+ 
+diff --git a/client/gui-sdl2/optiondlg.c b/client/gui-sdl2/optiondlg.c
+index f6523ad..c50821d 100644
+--- a/client/gui-sdl2/optiondlg.c
++++ b/client/gui-sdl2/optiondlg.c
+@@ -459,6 +459,36 @@ static struct strvec *video_mode_list(void)
+   int mode_count;
+   int i;
+ 
++#ifdef FREECIV_RISCOS
++  /* In a desktop window any size up to the screen's works, and the screen
++   * modes the display driver lists are few (often just the current one):
++   * offer the usual window sizes that fit. */
++  if (!GUI_SDL_OPTION(fullscreen)) {
++    static const struct video_mode sizes[] = {
++      {640, 480}, {800, 600}, {1024, 768}, {1152, 864}, {1280, 720},
++      {1280, 1024}, {1366, 768}, {1600, 900}, {1600, 1200}, {1920, 1080},
++      {1920, 1200}, {2560, 1440}
++    };
++    SDL_DisplayMode desk;
++    size_t j;
++
++    if (SDL_GetDesktopDisplayMode(active_display, &desk) == 0) {
++      for (j = 0; j < ARRAY_SIZE(sizes); j++) {
++        char buf[64];
++        struct video_mode vmod = sizes[j];
++
++        if (vmod.width <= desk.w && vmod.height <= desk.h
++            && video_mode_to_string(buf, sizeof(buf), &vmod)) {
++          strvec_append(video_modes, buf);
++        }
++      }
++      if (strvec_size(video_modes) > 0) {
++        return video_modes;
++      }
++    }
++  }
++#endif /* FREECIV_RISCOS */
++
+   mode_count = SDL_GetNumDisplayModes(active_display);
+   for (i = 0; i < mode_count; i++) {
+     SDL_DisplayMode mode;
+diff --git a/client/gui-sdl2/widget.c b/client/gui-sdl2/widget.c
+index 2293839..534669c 100644
+--- a/client/gui-sdl2/widget.c
++++ b/client/gui-sdl2/widget.c
+@@ -214,6 +214,14 @@ SDL_Surface *create_bcgnd_surf(SDL_Surface *ptheme, enum widget_state state,
+ /* ===================== WIDGET LIST ==================== */
+ /* =================================================== */
+ 
++/**********************************************************************//**
++  First widget of the main widget list (NULL if there are none).
++**************************************************************************/
++struct widget *main_widget_list_first(void)
++{
++  return begin_main_widget_list;
++}
++
+ /**********************************************************************//**
+   Find the next visible widget in the widget list starting with
+   start_widget that is drawn at position (x, y). If start_widget is NULL,
+diff --git a/client/gui-sdl2/widget.h b/client/gui-sdl2/widget.h
+index c4def34..584df34 100644
+--- a/client/gui-sdl2/widget.h
++++ b/client/gui-sdl2/widget.h
+@@ -202,6 +202,7 @@ void move_widget_to_front_of_gui_list(struct widget *gui);
+ void del_gui_list(struct widget *gui_list);
+ void del_main_list(void);
+ 
++struct widget *main_widget_list_first(void);
+ struct widget *find_next_widget_at_pos(struct widget *start_widget, int x, int y);
+ struct widget *find_next_widget_for_key(struct widget *start_widget, SDL_Keysym key);
+ 
+diff --git a/client/gui-sdl2/widget_scrollbar.c b/client/gui-sdl2/widget_scrollbar.c
+index d7df7fc..65744c4 100644
+--- a/client/gui-sdl2/widget_scrollbar.c
++++ b/client/gui-sdl2/widget_scrollbar.c
+@@ -951,6 +951,81 @@ static void inside_scroll_up_loop(void *data)
+   }
+ }
+ 
++/**********************************************************************//**
++  The mouse wheel over a dialog with a scrolled list (an advanced dialog
++  with the standard scroll buttons): scroll the list by 'rows' rows
++  (negative: up), as the up and down buttons do. Returns TRUE if a list
++  under the pointer was found.
++**************************************************************************/
++bool wheel_scroll_advanced_dialog(int x, int y, int rows)
++{
++  struct widget *pwidget;
++
++  for (pwidget = main_widget_list_first(); pwidget != NULL;
++       pwidget = pwidget->next) {
++    struct advanced_dialog *dlg;
++    struct widget *window;
++    SDL_Rect area;
++
++    /* Only the standard up buttons are known to carry an advanced dialog */
++    if (pwidget->action != std_up_advanced_dlg_callback) {
++      continue;
++    }
++    dlg = pwidget->private_data.adv_dlg;
++    if (dlg == NULL || dlg->scroll == NULL || dlg->end_widget_list == NULL
++        || dlg->active_widget_list == NULL
++        || (get_wflags(pwidget) & WF_HIDDEN)) {
++      continue;
++    }
++    window = dlg->end_widget_list;
++    area = (SDL_Rect){window->dst->dest_rect.x + window->size.x,
++                      window->dst->dest_rect.y + window->size.y,
++                      window->size.w, window->size.h};
++    if (!is_in_rect_area(x, y, &area)) {
++      continue;
++    }
++
++    /* The widget under the pointer (and its info label) moves away */
++    unselect_widget_action();
++
++    if (rows > 0) {
++      struct UP_DOWN down;
++      struct widget *end = dlg->active_widget_list;
++      int n = dlg->scroll->active * dlg->scroll->step - 1;
++
++      while (n-- > 0 && end->prev != NULL) {
++        end = end->prev;
++      }
++      down.step = get_step(dlg->scroll);
++      down.begin = dlg->active_widget_list;
++      down.end = end;
++      down.begin_widget_list = dlg->begin_active_widget_list;
++      down.end_widget_list = dlg->end_active_widget_list;
++      down.vscroll = dlg->scroll;
++      while (rows-- > 0) {
++        inside_scroll_down_loop(&down);
++      }
++      dlg->active_widget_list = down.begin;
++    } else {
++      struct UP_DOWN up;
++
++      up.step = get_step(dlg->scroll);
++      up.begin = dlg->active_widget_list;
++      up.begin_widget_list = dlg->begin_active_widget_list;
++      up.end_widget_list = dlg->end_active_widget_list;
++      up.vscroll = dlg->scroll;
++      while (rows++ < 0) {
++        inside_scroll_up_loop(&up);
++      }
++      dlg->active_widget_list = up.begin;
++    }
++
++    return TRUE;
++  }
++
++  return FALSE;
++}
++
+ /**********************************************************************//**
+   Handle mouse motion events of the vertical scrollbar event loop.
+ **************************************************************************/
+diff --git a/client/gui-sdl2/widget_scrollbar.h b/client/gui-sdl2/widget_scrollbar.h
+index e075d6c..0fe28cd 100644
+--- a/client/gui-sdl2/widget_scrollbar.h
++++ b/client/gui-sdl2/widget_scrollbar.h
+@@ -81,6 +81,7 @@ void setup_vertical_scrollbar_area(struct scroll_bar *scroll,
+                                    bool swap_start_x);
+ 
+ void setup_vertical_scrollbar_default_callbacks(struct scroll_bar *scroll);
++bool wheel_scroll_advanced_dialog(int x, int y, int rows);
+ 
+ /* HORIZONTAL */
+ struct widget *create_horizontal(SDL_Surface *horiz_theme,

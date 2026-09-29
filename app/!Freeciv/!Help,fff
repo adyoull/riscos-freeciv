@@ -38,8 +38,11 @@ Client options, saved games and any extra data (tilesets, rulesets) go in
 
 Notes and limits
 ----------------
-- Play in a window (the default, 1024x768; change the size in the
-  client's options). In full screen the desktop stops, so the server's
+- Play in a window (the default, 1024x768; change the size under
+  Options > Local options > Interface > Screen resolution; it changes at
+  once).
+- The mouse wheel scrolls the map (with Shift: left and right) and the
+  lists in dialogs. In full screen the desktop stops, so the server's
   TaskWindow can't run either: a game against the computer can't start.
 - English only in this build.
 - The server list from the Internet (metaserver) and modpack downloads
