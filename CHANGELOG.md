@@ -1,5 +1,22 @@
 # Changes
 
+## 3.2.6-riscos7test (2026-09-30)
+
+riscos6test on the Pi: quitting works, but took about 10 seconds, and
+the log file stayed empty. Patch 0010:
+
+- **Log:** the log file was opened twice (for normal output and for
+  errors). RISC OS doesn't allow a file to be open for writing twice, so
+  the second open failed and the log, which goes to the error output,
+  was lost. It is now opened once and shared. This fixes FreecivSrvLog
+  too.
+- **Quitting:** sounds still playing are stopped at once instead of
+  waited for. SDL mixes sound in its own thread, which on RISC OS doesn't
+  get time while the game waits in the desktop, so the sounds never
+  finished and each of two waits ran out after 5 seconds. The short quit
+  sound is cut.
+- The log names the SDL sound driver in use.
+
 ## 3.2.6-riscos6test (2026-09-30)
 
 riscos5test on the Pi: during a game the client wouldn't quit (icon bar

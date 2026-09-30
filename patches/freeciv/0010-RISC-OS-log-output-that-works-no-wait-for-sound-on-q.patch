@@ -1,0 +1,99 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Andrew Youll <adyoull@users.noreply.github.com>
+Date: Wed, 30 Sep 2026 11:17:23 +0100
+Subject: [PATCH] RISC OS: log output that works; no wait for sound on quit
+
+- fc_riscos_redirect_output() opened the log file twice (stdout, then
+  stderr). RISC OS doesn't allow a file to be open for writing twice, so
+  the second freopen() failed and closed stderr, where the log goes: the
+  log file stayed empty. It is now opened once, for stderr, and stdout
+  shares its handle (dup2). This affects the client and the server.
+- On quit, sounds still playing are stopped instead of waited for. SDL
+  mixes in its own thread, which on RISC OS doesn't run while the main
+  thread waits in the Wimp (SDL_Delay), so the sounds never finished and
+  quitting took 10 s (two 5 s waits). The quit sound is cut.
+- The log names the SDL audio driver in use.
+---
+ client/audio_sdl.c  | 15 +++++++++++++++
+ utility/fc_riscos.c | 19 ++++++++++++++-----
+ 2 files changed, 29 insertions(+), 5 deletions(-)
+
+diff --git a/client/audio_sdl.c b/client/audio_sdl.c
+index a17cd97..f7fee77 100644
+--- a/client/audio_sdl.c
++++ b/client/audio_sdl.c
+@@ -334,6 +334,18 @@ static void sdl_audio_wait(void)
+    * drops to 0 and the client would never exit. */
+   int waited = 0;
+ 
++#ifdef FREECIV_RISCOS
++  /* SDL mixes sound in its own thread. On RISC OS that thread only runs
++   * while this program is running, not while SDL_Delay() below waits in
++   * the Wimp, so sounds may never finish: stop them now instead. The
++   * short quit sound is cut. */
++  if (Mix_Playing(-1) != 0) {
++    log_verbose("Audio: stopping %d sound(s) without waiting",
++                Mix_Playing(-1));
++    Mix_HaltChannel(-1);
++  }
++#endif /* FREECIV_RISCOS */
++
+   while (Mix_Playing(-1) != 0) {
+     if (waited >= 5000) {
+       log_verbose("Audio: sound still playing after 5 s; not waiting.");
+@@ -465,6 +477,9 @@ static bool sdl_audio_init(struct audio_plugin *self)
+                         "MIX_PROP_PLAY_LOOPS_NUMBER", -1);
+ #else  /* AUDIO_SDL3 */
+   Mix_AllocateChannels(MIX_CHANNELS);
++  log_verbose("Audio: SDL audio driver \"%s\"",
++              SDL_GetCurrentAudioDriver() != NULL
++              ? SDL_GetCurrentAudioDriver() : "?");
+ #endif /* AUDIO_SDL3 */
+   for (i = 0; i < MIX_CHANNELS; i++) {
+ #ifdef AUDIO_SDL3
+diff --git a/utility/fc_riscos.c b/utility/fc_riscos.c
+index 1aee985..280cab6 100644
+--- a/utility/fc_riscos.c
++++ b/utility/fc_riscos.c
+@@ -20,6 +20,7 @@
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
++#include <unistd.h>          /* dup2() */
+ 
+ #include <kernel.h>
+ #include <swis.h>
+@@ -54,8 +55,10 @@ void fc_riscos_redirect_output(const char *var)
+     name = "/dev/null";
+   }
+ 
+-  /* Empty the file, then have both streams append to it, so neither
+-   * writes over what the other has written. */
++  /* Empty the file, then open it once, for stderr (where the log goes),
++   * and make stdout share that file handle. RISC OS doesn't let a file
++   * be opened for writing twice: a second freopen() of the same file
++   * failed and closed stderr, which lost the whole log. */
+   f = fopen(name, "w");
+   if (f != NULL) {
+     fclose(f);
+@@ -63,11 +66,17 @@ void fc_riscos_redirect_output(const char *var)
+     name = "/dev/null";
+   }
+ 
+-  if (freopen(name, "a", stdout) != NULL) {
+-    setvbuf(stdout, NULL, _IOLBF, 0);
+-  }
++  fflush(stdout);
+   if (freopen(name, "a", stderr) != NULL) {
+     setvbuf(stderr, NULL, _IONBF, 0);
++    if (dup2(fileno(stderr), fileno(stdout)) >= 0) {
++      setvbuf(stdout, NULL, _IOLBF, 0);
++    } else {
++      (void) freopen("/dev/null", "w", stdout);
++    }
++  } else {
++    (void) freopen("/dev/null", "w", stderr);
++    (void) freopen("/dev/null", "w", stdout);
+   }
+ }
+ 
