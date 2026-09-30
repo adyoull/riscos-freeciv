@@ -9,7 +9,7 @@ server; riscos2test adds !CivServer (start the server by hand, as in the
 earlier RISC OS ports) and a simpler automatic start; riscos3test makes
 screen updates faster; riscos4test makes full screen a "full window" that
 keeps the desktop running; riscos5test draws the map so that SDL's ARM
-(NEON) blitters can be used.
+(NEON) blitters can be used; riscos6test stops the client hanging on quit.
 
 ## How it works
 
@@ -65,6 +65,9 @@ SDL built without GL (like OpenTTD's) would drop it.
    and all images get the screen buffer's pixel format, so SDL can blend
    the tiles and units with its ARM NEON/SIMD routines (riscos-mesa
    devkit 10i). The log also times the map drawing.
+9. **Quitting.** The wait for the quit sound gives up after 5 seconds
+   (a stalled sound output kept the client from exiting), and a quit
+   request is never lost in a dialog's own event loop.
 
 ## Building
 

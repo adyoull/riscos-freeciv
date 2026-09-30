@@ -1,0 +1,141 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Andrew Youll <adyoull@users.noreply.github.com>
+Date: Wed, 30 Sep 2026 10:48:59 +0100
+Subject: [PATCH] Client: quitting can't hang waiting for sound; quit reaches
+ the main loop
+
+- sdl_audio_wait() gives up after 5 seconds. On quit the client plays
+  its quit sound and waits (twice) until no channel is playing; if the
+  sound output stalls, Mix_Playing() never drops to 0 and the client
+  never exits. On RISC OS the wait polls the Wimp, so the desktop kept
+  running with the game window open, ignoring Quit, Close and shutdown.
+- An SDL_QUIT that arrives in a nested event loop (dialog, edit field,
+  scroll bar) is remembered, so every loop returns down to the main loop
+  and the client quits.
+- Verbose log lines along the exit path ("Quit requested", "Left the
+  main loop", "Client exit: ...", "Audio: ...") show where a slow or
+  stuck exit stops.
+---
+ client/audio_sdl.c         | 13 +++++++++++++
+ client/client_main.c       |  5 +++++
+ client/gui-sdl2/gui_main.c | 11 +++++++++++
+ 3 files changed, 29 insertions(+)
+
+diff --git a/client/audio_sdl.c b/client/audio_sdl.c
+index 31fa9ff..a17cd97 100644
+--- a/client/audio_sdl.c
++++ b/client/audio_sdl.c
+@@ -329,8 +329,18 @@ static void sdl_audio_wait(void)
+     }
+   }
+ #else  /* AUDIO_SDL3 */
++  /* Give up after 5 seconds: if the sound output stops (on RISC OS,
++   * for example, when SharedSoundBuffer stalls), Mix_Playing() never
++   * drops to 0 and the client would never exit. */
++  int waited = 0;
++
+   while (Mix_Playing(-1) != 0) {
++    if (waited >= 5000) {
++      log_verbose("Audio: sound still playing after 5 s; not waiting.");
++      break;
++    }
+     SDL_Delay(100);
++    waited += 100;
+   }
+ #endif /* AUDIO_SDL3 */
+ }
+@@ -384,6 +394,7 @@ static void sdl_audio_shutdown(struct audio_plugin *self)
+ 
+   self->initialized = FALSE;
+ 
++  log_verbose("Audio: stopping all sounds");
+   sdl_audio_stop();
+   sdl_audio_wait();
+ 
+@@ -406,7 +417,9 @@ static void sdl_audio_shutdown(struct audio_plugin *self)
+   Mix_HaltMusic();
+   Mix_FreeMusic(mus);
+ 
++  log_verbose("Audio: closing the sound device");
+   Mix_CloseAudio();
++  log_verbose("Audio: sound device closed");
+ #endif /* AUDIO_SDL3 */
+ 
+   quit_sdl_audio();
+diff --git a/client/client_main.c b/client/client_main.c
+index 7b3c259..2af58da 100644
+--- a/client/client_main.c
++++ b/client/client_main.c
+@@ -723,6 +723,7 @@ static void log_option_save_msg(enum log_level lvl, const char *msg, ...)
+ **************************************************************************/
+ void fc__noreturn client_exit(int return_value)
+ {
++  log_verbose("Client exit: saving state");
+   if (client_state() >= C_S_PREPARING) {
+     attribute_flush();
+     client_remove_all_cli_conn();
+@@ -740,10 +741,13 @@ void fc__noreturn client_exit(int return_value)
+     tileset_free(tileset);
+   }
+ 
++  log_verbose("Client exit: closing the UI");
+   ui_exit();
+ 
+   /* Play the exit sound while audio system dependencies still up. */
++  log_verbose("Client exit: stopping sound");
+   audio_shutdown(TRUE);
++  log_verbose("Client exit: freeing data");
+ 
+   script_client_free();
+ 
+@@ -762,6 +766,7 @@ void fc__noreturn client_exit(int return_value)
+   libfreeciv_free();
+ 
+   backtrace_deinit();
++  log_verbose("Client exit: done");
+   log_close();
+   cmdline_option_values_free();
+ 
+diff --git a/client/gui-sdl2/gui_main.c b/client/gui-sdl2/gui_main.c
+index ac6682f..bb8fe35 100644
+--- a/client/gui-sdl2/gui_main.c
++++ b/client/gui-sdl2/gui_main.c
+@@ -131,6 +131,7 @@ static unsigned font_size_parameter = 0;
+ /* ================================ Private ============================ */
+ static int net_socket = -1;
+ static bool autoconnect = FALSE;
++static bool quit_requested = FALSE;
+ static bool is_map_scrolling = FALSE;
+ static enum direction8 scroll_dir;
+ 
+@@ -645,6 +646,9 @@ widget_id gui_event_loop(void *data,
+   ID = ID_ERROR;
+   t_last_map_scrolling = t_last_unit_anim = real_timer_next_call = SDL_GetTicks();
+   while (ID == ID_ERROR) {
++    if (quit_requested) {
++      return MAX_ID;
++    }
+     /* ========================================= */
+     /* Net check with 10ms delay event loop */
+     if (net_socket >= 0) {
+@@ -775,6 +779,12 @@ widget_id gui_event_loop(void *data,
+         switch (main_data.event.type) {
+ 
+         case SDL_QUIT:
++          /* Remember it: a nested loop (a dialog, an edit field, a
++           * scroll bar held down) that gets it returns to its caller,
++           * which doesn't know about quitting. Every loop then returns,
++           * down to the main loop. */
++          log_verbose("Quit requested");
++          quit_requested = TRUE;
+           return MAX_ID;
+           break;
+ 
+@@ -1383,6 +1393,7 @@ int ui_main(int argc, char *argv[])
+                    main_finger_down_handler, main_finger_up_handler, NULL,
+                    main_mouse_button_down_handler, main_mouse_button_up_handler,
+                    main_mouse_motion_handler);
++    log_verbose("Left the main loop");
+     start_quitting();
+ 
+     city_map_canvas_free();

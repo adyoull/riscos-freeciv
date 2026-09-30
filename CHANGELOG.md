@@ -1,5 +1,22 @@
 # Changes
 
+## 3.2.6-riscos6test (2026-09-30)
+
+riscos5test on the Pi: during a game the client wouldn't quit (icon bar
+Quit, the window's close icon, Escape, Alt-Break or shutting down RISC
+OS), while the desktop kept running. Patch 0009:
+
+- On quit the client plays its quit sound and then waits until no sound
+  is playing. If the sound output stalls, that wait never ended, and
+  since it polls the Wimp the desktop kept running with the game window
+  still open, ignoring every request to quit. It now gives up after 5
+  seconds.
+- A quit request that arrives while a dialog, edit field or scroll bar
+  has its own event loop is no longer lost: every loop returns, down to
+  the main loop.
+- With Freeciv$Log set, the log follows the quit step by step ("Quit
+  requested", "Left the main loop", "Client exit: ...", "Audio: ...").
+
 ## 3.2.6-riscos5test (2026-09-30)
 
 riscos-mesa devkit 10i switches on SDL's ARM NEON/SIMD blitters. On a
