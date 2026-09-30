@@ -1,0 +1,265 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Andrew Youll <adyoull@users.noreply.github.com>
+Date: Wed, 30 Sep 2026 09:53:06 +0100
+Subject: [PATCH] SDL2 client: map drawn onto a surface without alpha; timing
+ in the log
+
+With direct present (RISC OS):
+- The map's backing store (mapview.store and tmp_store) is made without
+  alpha, in the main surface's colour order. It is always covered and is
+  copied, not blended, onto the screen, so its alpha was never needed.
+  SDL's ARM NEON/SIMD alpha blitters only draw onto surfaces without
+  alpha, so the tiles and units can now use them.
+- Every loaded image is converted to the main surface's pixel format
+  (upstream converted only paletted ones), so blits need no conversion.
+
+On RISC OS, the Freeciv$Log statistics also give the time spent drawing
+the map (update_map_canvas), and log once which program ran
+(Freeciv$Prog) and the window, screen buffer and map pixel formats.
+---
+ client/gui-sdl2/canvas.c   | 19 ++++++++++++++
+ client/gui-sdl2/graphics.c | 10 +++++++
+ client/gui-sdl2/graphics.h |  4 +++
+ client/gui-sdl2/gui_main.c | 53 ++++++++++++++++++++++++++++++++++++--
+ client/gui-sdl2/gui_main.h |  5 ++++
+ client/gui-sdl2/sprite.c   |  8 ++++++
+ client/mapview_common.c    | 14 ++++++++++
+ 7 files changed, 111 insertions(+), 2 deletions(-)
+
+diff --git a/client/gui-sdl2/canvas.c b/client/gui-sdl2/canvas.c
+index 8ba1c1f..f4af6da 100644
+--- a/client/gui-sdl2/canvas.c
++++ b/client/gui-sdl2/canvas.c
+@@ -80,6 +80,25 @@ bool has_zoom_support(void)
+ **************************************************************************/
+ void canvas_mapview_init(struct canvas *store)
+ {
++#ifdef FREECIV_SDL2_OPAQUE_MAP
++  /* The map's backing store is always covered (unknown areas are filled),
++   * and is copied (not blended) onto the screen, so it needs no alpha.
++   * Without it, SDL can blend the tiles with its fast ARM routines, which
++   * only draw onto surfaces without alpha. Same colour order as the main
++   * surface. */
++  {
++    const SDL_PixelFormat *fmt = store->surf->format;
++    SDL_Surface *opaque = SDL_CreateRGBSurface(0, store->surf->w,
++                                               store->surf->h, 32,
++                                               fmt->Rmask, fmt->Gmask,
++                                               fmt->Bmask, 0);
++
++    if (opaque != NULL) {
++      FREESURFACE(store->surf);
++      store->surf = opaque;
++    }
++  }
++#endif /* FREECIV_SDL2_OPAQUE_MAP */
+   SDL_SetSurfaceBlendMode(store->surf, SDL_BLENDMODE_NONE);
+ }
+ 
+diff --git a/client/gui-sdl2/graphics.c b/client/gui-sdl2/graphics.c
+index 657a71c..f519a95 100644
+--- a/client/gui-sdl2/graphics.c
++++ b/client/gui-sdl2/graphics.c
+@@ -429,6 +429,16 @@ SDL_Surface *create_surf(int width, int height, Uint32 flags)
+   return create_surf_with_format(main_surface->format, width, height, flags);
+ }
+ 
++#ifdef FREECIV_SDL2_OPAQUE_MAP
++/**********************************************************************//**
++  The main surface's pixel format, or NULL if there is no main surface yet.
++**************************************************************************/
++const SDL_PixelFormat *main_surface_format(void)
++{
++  return (main_surface != NULL) ? main_surface->format : NULL;
++}
++#endif /* FREECIV_SDL2_OPAQUE_MAP */
++
+ /**********************************************************************//**
+   Convert surface to the main window format.
+ **************************************************************************/
+diff --git a/client/gui-sdl2/graphics.h b/client/gui-sdl2/graphics.h
+index 5740b03..df30d3e 100644
+--- a/client/gui-sdl2/graphics.h
++++ b/client/gui-sdl2/graphics.h
+@@ -288,6 +288,10 @@ bool create_surfaces(int width, int height);
+ void update_main_screen(void);
+ #if defined(FREECIV_RISCOS) || defined(FREECIV_SDL2_DIRECT_PRESENT)
+ void direct_present_stats(Uint32 *updates, Uint64 *pixels, double *ms);
++/* The map's backing store has no alpha, and loaded graphics have the main
++ * surface's pixel format (see canvas_mapview_init(), load_gfxfile()). */
++#define FREECIV_SDL2_OPAQUE_MAP
++const SDL_PixelFormat *main_surface_format(void);
+ #endif
+ 
+ int main_window_width(void);
+diff --git a/client/gui-sdl2/gui_main.c b/client/gui-sdl2/gui_main.c
+index 9b4ecb5..ac6682f 100644
+--- a/client/gui-sdl2/gui_main.c
++++ b/client/gui-sdl2/gui_main.c
+@@ -26,6 +26,7 @@
+ #include "fc_prehdrs.h"
+ 
+ #include <errno.h>
++#include <stdlib.h>
+ 
+ #ifdef HAVE_LOCALE_H
+ #include <locale.h>
+@@ -76,6 +77,7 @@
+ #include "citydlg.h"
+ #include "cityrep.h"
+ #include "diplodlg.h"
++#include "canvas.h"
+ #include "graphics.h"
+ #include "gui_id.h"
+ #include "gui_mouse.h"
+@@ -958,28 +960,75 @@ static void riscos_idle_delay(Uint32 ms)
+   RISC OS: every 10 seconds, log how busy the client was and what showing
+   the picture cost (with Freeciv$Log set, in <Wimp$ScrapDir>.FreecivLog).
+ **************************************************************************/
++static Uint64 riscos_map_ticks = 0;
++
++/**********************************************************************//**
++  RISC OS: called by update_map_canvas() at its start and end, to time
++  the map drawing for the statistics.
++**************************************************************************/
++void riscos_map_timing(bool start)
++{
++  static Uint64 t0 = 0;
++
++  if (start) {
++    t0 = SDL_GetPerformanceCounter();
++  } else if (t0 != 0) {
++    riscos_map_ticks += SDL_GetPerformanceCounter() - t0;
++    t0 = 0;
++  }
++}
++
++/**********************************************************************//**
++  RISC OS: log the pixel formats once, so a slow blit path shows up.
++**************************************************************************/
++static void riscos_log_formats(void)
++{
++  SDL_Surface *ws = SDL_GetWindowSurface(main_data.screen);
++  const SDL_PixelFormat *mf = main_surface_format();
++
++  const char *prog = getenv("Freeciv$Prog");
++
++  log_verbose("RISC OS: program %s; pixel formats: window %s, "
++              "screen buffer %s, map %s",
++              prog != NULL ? prog : "?",
++              ws != NULL ? SDL_GetPixelFormatName(ws->format->format) : "-",
++              mf != NULL ? SDL_GetPixelFormatName(mf->format) : "-",
++              (mapview.store != NULL && mapview.store->surf != NULL)
++              ? SDL_GetPixelFormatName(mapview.store->surf->format->format)
++              : "-");
++}
++
+ static void riscos_log_stats(void)
+ {
+   static Uint64 last = 0;
++  static bool formats_logged = FALSE;
+   Uint64 now = SDL_GetPerformanceCounter();
+   Uint64 freq = SDL_GetPerformanceFrequency();
+ 
++  if (!formats_logged && mapview.store != NULL) {
++    riscos_log_formats();
++    formats_logged = TRUE;
++  }
++
+   if (last == 0) {
+     last = now;
+     riscos_idle_ticks = 0;
++    riscos_map_ticks = 0;
+   } else if (now - last >= 10 * freq) {
+     Uint32 updates;
+     Uint64 pixels;
+     double ms;
+ 
+     direct_present_stats(&updates, &pixels, &ms);
+-    log_verbose("RISC OS: in %.1f s, busy %.0f%%; %u screen updates, "
+-                "%.1f Mpixels, %.0f ms",
++    log_verbose("RISC OS: in %.1f s, busy %.0f%%; map drawing %.0f ms; "
++                "%u screen updates, %.1f Mpixels, %.0f ms",
+                 (double) (now - last) / freq,
+                 100.0 - 100.0 * riscos_idle_ticks / (now - last),
++                riscos_map_ticks * 1000.0 / freq,
+                 (unsigned) updates, pixels / 1e6, ms);
+     last = now;
+     riscos_idle_ticks = 0;
++    riscos_map_ticks = 0;
+   }
+ }
+ #endif /* FREECIV_RISCOS */
+diff --git a/client/gui-sdl2/gui_main.h b/client/gui-sdl2/gui_main.h
+index e74d2cd..7aab1b5 100644
+--- a/client/gui-sdl2/gui_main.h
++++ b/client/gui-sdl2/gui_main.h
+@@ -145,4 +145,9 @@ bool flush_event(void);
+   #define adj_size(size) (size)
+ #endif
+ 
++#ifdef FREECIV_RISCOS
++/* Also declared in client/mapview_common.c, which calls it. */
++void riscos_map_timing(bool start);
++#endif
++
+ #endif /* FC__GUI_MAIN_H */
+diff --git a/client/gui-sdl2/sprite.c b/client/gui-sdl2/sprite.c
+index 7e7efb4..40aace7 100644
+--- a/client/gui-sdl2/sprite.c
++++ b/client/gui-sdl2/sprite.c
+@@ -67,7 +67,15 @@ struct sprite *load_gfxfile(const char *filename, bool svgflag)
+     return NULL; /* Should I use abort() ? */
+   }
+ 
++#ifdef FREECIV_SDL2_OPAQUE_MAP
++  /* Give every image the main surface's format (with alpha), so blits
++   * need no pixel conversion and SDL can use its fast ARM routines. */
++  if (pbuf->format->palette != NULL
++      || (main_surface_format() != NULL
++          && pbuf->format->format != main_surface_format()->format)) {
++#else
+   if (pbuf->format->palette != NULL) {
++#endif
+     SDL_Surface *pnew = convert_surf(pbuf);
+ 
+     FREESURFACE(pbuf);
+diff --git a/client/mapview_common.c b/client/mapview_common.c
+index bf95eba..ed4f252 100644
+--- a/client/mapview_common.c
++++ b/client/mapview_common.c
+@@ -49,6 +49,12 @@
+ 
+ #include "mapview_common.h"
+ 
++#ifdef FREECIV_RISCOS
++/* In the SDL2 client (the only client on RISC OS): time spent drawing
++ * the map, for the Freeciv$Log statistics. */
++void riscos_map_timing(bool start);
++#endif
++
+ 
+ struct tile_hash *mapdeco_highlight_table;
+ struct tile_hash *mapdeco_crosshair_table;
+@@ -1770,6 +1776,10 @@ void update_map_canvas(int canvas_x, int canvas_y, int width, int height)
+     return;
+   }
+ 
++#ifdef FREECIV_RISCOS
++  riscos_map_timing(TRUE);
++#endif
++
+   gui_x0 = mapview.gui_x0 + canvas_x;
+   gui_y0 = mapview.gui_y0 + canvas_y;
+   full = (canvas_x == 0 && canvas_y == 0
+@@ -1861,6 +1871,10 @@ void update_map_canvas(int canvas_x, int canvas_y, int width, int height)
+                 canvas_x, canvas_y, canvas_x, canvas_y, width, height);
+   }
+ 
++#ifdef FREECIV_RISCOS
++  riscos_map_timing(FALSE);
++#endif
++
+   dirty_rect(canvas_x, canvas_y, width, height);
+ }
+ 

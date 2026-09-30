@@ -45,4 +45,10 @@ If "<Freeciv$Log>"<>"" Then Set Freeciv$LogArg --debug 3
 WimpSlot -min 44000K -max 44000K
 
 | --- Program -------------------------------------------------------
-Do Run <Freeciv$Dir>.freeciv-sdl2 <Freeciv$LogArg> %*0
+| Test builds: freeciv-sdl2-10h is the same game linked with the older SDL
+| (riscos-mesa devkit 10h, without SDL's ARM blitters), to compare the
+| speed. To use it, *Set Freeciv$SDL 10h before running. The log says
+| which program ran.
+Set Freeciv$Prog freeciv-sdl2
+If "<Freeciv$SDL>"="10h" Then Set Freeciv$Prog freeciv-sdl2-10h
+Do Run <Freeciv$Dir>.<Freeciv$Prog> <Freeciv$LogArg> %*0

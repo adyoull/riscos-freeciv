@@ -7,7 +7,7 @@
 set -e
 . "$(dirname "$0")/env.sh"
 
-VERSION=${VERSION:-$FREECIV_VERSION-riscos4test}
+VERSION=${VERSION:-$FREECIV_VERSION-riscos5test}
 FC=$SRC/freeciv-$FREECIV_TAG
 B=$FC/build-ro
 DIST=${DIST:-$RCF_ROOT/dist}
@@ -31,7 +31,10 @@ cp "$RCF_ROOT"/app/'!Freeciv'/* "$APP/"
 cp "$RCF_ROOT"/app/'!CivServer'/* "$SRVAPP/"
 
 # Programs: ELF -> AIF (Absolute), stripped. -e: EABI (arm-riscos-gnueabihf) ELF.
-for p in freeciv-sdl2 freeciv-server; do
+# freeciv-sdl2-10h (test builds only): the A/B client from build-freeciv.sh.
+progs="freeciv-sdl2 freeciv-server"
+[ -x "$B/freeciv-sdl2-10h" ] && progs="$progs freeciv-sdl2-10h"
+for p in $progs; do
   $TARGET-strip -o "$STAGE/$p.stripped" "$B/$p"
   elf2aif -e "$STAGE/$p.stripped" "$APP/$p,ff8" >/dev/null
 done
@@ -84,4 +87,4 @@ echo "$VERSION" > "$APP/docs/Version,fff"
 
 ( cd "$DIST" && rm -f "Freeciv-$VERSION.zip" && python3 "$RCF_ROOT/tools/rozip.py" "Freeciv-$VERSION.zip" '!Freeciv' '!CivServer' )
 ls -la "$DIST/Freeciv-$VERSION.zip"
-md5sum "$DIST/Freeciv-$VERSION.zip" "$APP/freeciv-sdl2,ff8" "$APP/freeciv-server,ff8"
+md5sum "$DIST/Freeciv-$VERSION.zip" "$APP"/*,ff8

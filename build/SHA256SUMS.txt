@@ -12,3 +12,4 @@ e32e817f7b4166a301f60b14a711871bfab7d35c1d7e29b585dfc479ae150aa4  sqlite3_3.45.1
 2d37e8fb054c2a469a017b36cb052f05eb3d8d0f31bf259290d04a8da2c59bd1  unixlib-5.0.2/SHA256SUMS
 bcd012806ec2b28e33633f1badf3b6946a583bad3ffefba672d67873ba812254  unixlib-5.0.2/libunixlib.a
 cabf419e8d55dba55bbd4ee2df81a6c773321f79fb5ad10f38c0da31f04433cc  unixlib-5.0.2/unixlib-riscos.diff
+de781e1962d64545b9d96a01bdebfdd6520613df8b9d8f1d1c926c4b2f551c36  riscos-mesa-devkit-10i.tgz

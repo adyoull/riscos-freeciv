@@ -8,14 +8,15 @@ Status: **test builds.** riscos1test ran on a Pi but couldn't start its
 server; riscos2test adds !CivServer (start the server by hand, as in the
 earlier RISC OS ports) and a simpler automatic start; riscos3test makes
 screen updates faster; riscos4test makes full screen a "full window" that
-keeps the desktop running.
+keeps the desktop running; riscos5test draws the map so that SDL's ARM
+(NEON) blitters can be used.
 
 ## How it works
 
 | Part | What it is |
 |---|---|
 | Freeciv 3.2.6 | upstream tag `R3_2_6`, built with meson, plus the patches in `patches/freeciv` |
-| SDL2 | the riscos-mesa devkit (20.3.5-10h): SDL 2.26 with the RISC OS Wimp video driver and the SharedSoundBuffer sound driver |
+| SDL2 | the riscos-mesa devkit (10i): SDL 2.26 with the RISC OS Wimp video driver and the SharedSoundBuffer sound driver |
 | SDL2_image 2.6.3 | PNG only, decoded by its bundled stb_image |
 | SDL2_ttf 2.20.2 | its bundled FreeType, no HarfBuzz |
 | SDL2_mixer 2.6.3 | WAV and Ogg Vorbis (bundled stb_vorbis) |
@@ -60,6 +61,10 @@ SDL built without GL (like OpenTTD's) would drop it.
    (a mode change in full screen) and takes the full-screen size from the
    window, which the riscos-mesa driver makes a borderless, screen-size
    Wimp window.
+8. **Map without alpha.** The map is drawn onto a surface without alpha,
+   and all images get the screen buffer's pixel format, so SDL can blend
+   the tiles and units with its ARM NEON/SIMD routines (riscos-mesa
+   devkit 10i). The log also times the map drawing.
 
 ## Building
 

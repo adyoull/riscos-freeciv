@@ -1,5 +1,25 @@
 # Changes
 
+## 3.2.6-riscos5test (2026-09-30)
+
+riscos-mesa devkit 10i switches on SDL's ARM NEON/SIMD blitters. On a
+Pi 4 they blend Freeciv-style tiles about 1.6 times faster, but only
+onto surfaces without alpha. Freeciv drew its map onto a surface with
+alpha, so it wouldn't have gained anything. Patch 0008:
+
+- The map is drawn onto a surface without alpha (it is always covered,
+  and copied rather than blended, so the alpha wasn't used).
+- Every loaded image is converted to the screen buffer's pixel format, so
+  the fast routines apply and no blit converts pixels.
+- With Freeciv$Log set, the 10-second line also gives the time spent
+  drawing the map ("map drawing N ms"). The screen-update time (the last
+  figure) doesn't include that. A line at the start gives the program and
+  the pixel formats.
+
+Test builds also contain `freeciv-sdl2-10h`: the same game linked with
+the previous SDL (devkit 10h, without the ARM routines). `*Set
+Freeciv$SDL 10h` before running !Freeciv to use it, to compare the speed.
+
 ## 3.2.6-riscos4test (2026-09-30)
 
 - Full screen is now a "full window", as in RDPClient: a borderless

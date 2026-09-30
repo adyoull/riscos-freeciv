@@ -61,4 +61,16 @@ if [ "$1" = reconfigure ] || [ ! -f "$B/build.ninja" ]; then
     -Dproject-definition="$RCF_ROOT/build/riscos.fcproj"
 fi
 ninja -C "$B" -j"$JOBS" freeciv-sdl2 freeciv-server
-ls -la "$B"/freeciv-sdl2 "$B"/freeciv-server
+
+# A/B test client: the same objects, linked with $AB_DEVKIT's libraries
+# (only the SDL library differs), as freeciv-sdl2-10h.
+rm -f "$B/freeciv-sdl2-10h"
+if [ -n "$AB_DEVKIT" ]; then
+  [ -d "$AB_DEVKIT" ] || die "AB_DEVKIT $AB_DEVKIT not unpacked"
+  link=$(ninja -C "$B" -t commands freeciv-sdl2 | tail -1)
+  case "$link" in *"$DEVKIT/lib"*) ;; *) die "can't find the devkit in the link line" ;; esac
+  link=${link//"$DEVKIT"/"$AB_DEVKIT"}
+  link=${link//"-o freeciv-sdl2 "/"-o freeciv-sdl2-10h "}
+  ( cd "$B" && eval "$link" )
+fi
+ls -la "$B"/freeciv-sdl2 "$B"/freeciv-sdl2-10h "$B"/freeciv-server 2>/dev/null || true

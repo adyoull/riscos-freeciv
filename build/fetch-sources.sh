@@ -9,7 +9,7 @@
 #   SDL2_image/ttf/mixer    https://github.com/libsdl-org/SDL_{image,ttf,mixer}/releases
 #   curl-8.10.1.tar.xz      https://github.com/curl/curl/releases
 #   sqlite3_3.45.1.orig     https://archive.ubuntu.com/ubuntu/pool/main/s/sqlite3/
-#   riscos-mesa devkit      https://github.com/adyoull/riscos-mesa/releases (20.3.5-10h, file riscos-mesa-devkit-10h.tgz)
+#   riscos-mesa devkit      https://github.com/adyoull/riscos-mesa/releases (10i, file riscos-mesa-devkit-10i.tgz; 10h for the A/B test client)
 #   toolchain               https://github.com/adyoull/riscos-crossdev/releases (1.0)
 #   gccsdk-64c6f81.tar.gz   https://github.com/jhamby/riscos-gccsdk (commit 64c6f81)
 #   unixlib-5.0.2/          https://github.com/adyoull/riscos-unixlib/releases (v5.0.2)
@@ -19,5 +19,6 @@ set -e
 ( cd "$DL" && sha256sum -c --quiet "$RCF_ROOT/build/SHA256SUMS.txt" ) || die "checksum mismatch in $DL"
 echo "sources OK"
 mkdir -p "$(dirname "$DEVKIT")"
-[ -d "$DEVKIT" ] || tar xzf "$DL/riscos-mesa-devkit-10h.tgz" -C "$(dirname "$DEVKIT")"
+[ -d "$DEVKIT" ] || tar xzf "$DL/riscos-mesa-devkit-10i.tgz" -C "$(dirname "$DEVKIT")"
+[ -z "$AB_DEVKIT" ] || [ -d "$AB_DEVKIT" ] || tar xzf "$DL/riscos-mesa-devkit-10h.tgz" -C "$(dirname "$AB_DEVKIT")"
 "$RCF_ROOT/tools/fc-patches.sh" checkout
