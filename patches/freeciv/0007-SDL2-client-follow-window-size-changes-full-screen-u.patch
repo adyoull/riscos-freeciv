@@ -1,0 +1,117 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Andrew Youll <adyoull@users.noreply.github.com>
+Date: Wed, 30 Sep 2026 07:37:06 +0100
+Subject: [PATCH] SDL2 client: follow window size changes; full screen uses the
+ window size
+
+Handle SDL_WINDOWEVENT_RESIZED / SIZE_CHANGED: when the window changes
+size from outside the client (for example a screen mode change while in
+full screen), make new surfaces of the new size and lay out the screen
+again.
+
+Full screen (SDL_WINDOW_FULLSCREEN_DESKTOP) now takes its size from
+SDL_GetWindowSize rather than the display mode, falling back to the
+display mode if that gives nothing. On RISC OS the riscos-mesa SDL
+driver (devkit 10h) makes full screen a borderless, screen-size Wimp
+window that keeps the desktop running, and restores the old window on
+leaving it.
+---
+ client/gui-sdl2/graphics.c | 15 ++++++++++++---
+ client/gui-sdl2/gui_main.c | 33 +++++++++++++++++++++++++++++++--
+ 2 files changed, 43 insertions(+), 5 deletions(-)
+
+diff --git a/client/gui-sdl2/graphics.c b/client/gui-sdl2/graphics.c
+index 36fca18..657a71c 100644
+--- a/client/gui-sdl2/graphics.c
++++ b/client/gui-sdl2/graphics.c
+@@ -762,12 +762,21 @@ bool set_video_mode(unsigned width, unsigned height, unsigned flags_in)
+ 
+   if (flags_in & SDL_WINDOW_FULLSCREEN) {
+     SDL_DisplayMode mode;
++    int w, h;
+ 
+     /* Use SDL_WINDOW_FULLSCREEN_DESKTOP instead of real SDL_WINDOW_FULLSCREEN */
+     SDL_SetWindowFullscreen(main_data.screen, SDL_WINDOW_FULLSCREEN_DESKTOP);
+-    SDL_GetWindowDisplayMode(main_data.screen, &mode);
+-    width = mode.w;
+-    height = mode.h;
++    /* The window's own size: a desktop-size window need not match the
++     * display mode SDL reports (the RISC OS driver's "full window"). */
++    SDL_GetWindowSize(main_data.screen, &w, &h);
++    if (w > 0 && h > 0) {
++      width = w;
++      height = h;
++    } else {
++      SDL_GetWindowDisplayMode(main_data.screen, &mode);
++      width = mode.w;
++      height = mode.h;
++    }
+   }
+ 
+   if (!create_surfaces(width, height)) {
+diff --git a/client/gui-sdl2/gui_main.c b/client/gui-sdl2/gui_main.c
+index 151370e..9b4ecb5 100644
+--- a/client/gui-sdl2/gui_main.c
++++ b/client/gui-sdl2/gui_main.c
+@@ -156,6 +156,7 @@ static SDL_Event *map_scroll_user_event = NULL;
+ static void print_usage(void);
+ static bool parse_options(int argc, char **argv);
+ static bool check_scroll_area(int x, int y);
++static void real_resize_window_callback(void *data);
+ 
+ int user_event_type;
+ 
+@@ -775,6 +776,26 @@ widget_id gui_event_loop(void *data,
+           return MAX_ID;
+           break;
+ 
++        case SDL_WINDOWEVENT:
++          /* The window was resized from outside the client (for example a
++           * screen mode change while in full screen): the window surface
++           * has changed, so make new surfaces of the window's new size. */
++          if (main_data.event.window.event == SDL_WINDOWEVENT_RESIZED
++              || main_data.event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
++            int w = main_data.event.window.data1;
++            int h = main_data.event.window.data2;
++
++            if (w > 0 && h > 0
++                && (w != main_window_width() || h != main_window_height())) {
++              if (create_surfaces(w, h)) {
++                update_queue_add(real_resize_window_callback, NULL);
++              } else {
++                log_error("Can't resize the window to %dx%d", w, h);
++              }
++            }
++          }
++          break;
++
+         case SDL_KEYUP:
+           switch (main_data.event.key.keysym.sym) {
+             /* find if Shifts are released */
+@@ -1101,6 +1122,7 @@ static void resize_window_callback(struct option *poption)
+ static void fullscreen_callback(struct option *poption)
+ {
+   SDL_DisplayMode mode;
++  int w, h;
+ 
+   if (GUI_SDL_OPTION(fullscreen)) {
+     SDL_SetWindowFullscreen(main_data.screen, SDL_WINDOW_FULLSCREEN_DESKTOP);
+@@ -1108,9 +1130,16 @@ static void fullscreen_callback(struct option *poption)
+     SDL_SetWindowFullscreen(main_data.screen, 0);
+   }
+ 
+-  SDL_GetWindowDisplayMode(main_data.screen, &mode);
++  /* The window's own size, not the display mode: on RISC OS full screen
++   * is a desktop-size Wimp window, and leaving it restores the old window. */
++  SDL_GetWindowSize(main_data.screen, &w, &h);
++  if (w <= 0 || h <= 0) {
++    SDL_GetWindowDisplayMode(main_data.screen, &mode);
++    w = mode.w;
++    h = mode.h;
++  }
+ 
+-  if (!create_surfaces(mode.w, mode.h)) {
++  if (!create_surfaces(w, h)) {
+     /* Try to revert */
+     if (!GUI_SDL_OPTION(fullscreen)) {
+       SDL_SetWindowFullscreen(main_data.screen, SDL_WINDOW_FULLSCREEN_DESKTOP);

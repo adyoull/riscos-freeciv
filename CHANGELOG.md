@@ -1,5 +1,16 @@
 # Changes
 
+## 3.2.6-riscos4test (2026-09-30)
+
+- Full screen is now a "full window", as in RDPClient: a borderless
+  window that covers the screen while the desktop keeps running, so a
+  game against the computer can start in full screen. This comes from
+  the riscos-mesa SDL driver (devkit 10h, which the build now uses).
+- Patch 0007: the client follows window size changes from outside (for
+  example a screen mode change while in full screen) and takes the
+  full-screen size from the window.
+- !Help: full screen described; the "play in a window" warning removed.
+
 ## 3.2.6-riscos3test (2026-09-29)
 
 riscos2test on the Pi: runs (with !CivServer), but slow; the wheel and

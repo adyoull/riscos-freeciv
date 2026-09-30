@@ -6,7 +6,7 @@
 34cf46e38f5dc5df1dcc794f3056a21535e92b35dec7a3b1f944deaf8ff36ce0  freeciv-R3_2_6.tar.gz
 d4a2e97e180ebc7b19e49e74b5ac60a71ed8bb3757b64128e7629cd27d9ab9b7  gccsdk-64c6f81.tar.gz
 f204e6c4a59df67bd964905e7647306bc31fc8ee79e8e2ee4e871aa72cb27c1f  riscos-crossdev-toolchain-1.0-x86_64-linux.tar.xz
-cb7ff6057f88d46ca5d7bb7a97c574e1493230264b1d74ab07ef981f93ba46ee  riscos-mesa-devkit-20.3.5-9.tgz
+b2ff8dc1ef25e60e934fa22d75aa5ec999e3055097b1a52e4ed2e5d6e762bdd3  riscos-mesa-devkit-10h.tgz
 e32e817f7b4166a301f60b14a711871bfab7d35c1d7e29b585dfc479ae150aa4  sqlite3_3.45.1.orig.tar.xz
 6e4529d69afdbe8bba5147bc3e0e8c7df21e79788e1e8bdb3757e59f6e7c0240  unixlib-5.0.2/PThreadTicker-0.01.zip
 2d37e8fb054c2a469a017b36cb052f05eb3d8d0f31bf259290d04a8da2c59bd1  unixlib-5.0.2/SHA256SUMS

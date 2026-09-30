@@ -38,12 +38,17 @@ Client options, saved games and any extra data (tilesets, rulesets) go in
 
 Notes and limits
 ----------------
-- Play in a window (the default, 1024x768; change the size under
-  Options > Local options > Interface > Screen resolution; it changes at
-  once).
+- The game plays in a window (1024x768 to start with; change the size
+  under Options > Local options > Interface > Screen resolution; it
+  changes at once).
+- Full screen (Options > Local options > Interface > Fullscreen) is a
+  "full window", as in RDPClient: a window without borders that covers
+  the screen. The desktop keeps running, so the server and other tasks
+  carry on. Move the pointer to the bottom of the screen for the icon
+  bar; click on the game to bring it back to the front. Turn the option
+  off to go back to the window.
 - The mouse wheel scrolls the map (with Shift: left and right) and the
-  lists in dialogs. In full screen the desktop stops, so the server's
-  TaskWindow can't run either: a game against the computer can't start.
+  lists in dialogs.
 - English only in this build.
 - The server list from the Internet (metaserver) and modpack downloads
   need https, which this build doesn't have yet. You can still connect to

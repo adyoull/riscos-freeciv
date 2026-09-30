@@ -6,14 +6,16 @@ or join a Freeciv server on the network.
 
 Status: **test builds.** riscos1test ran on a Pi but couldn't start its
 server; riscos2test adds !CivServer (start the server by hand, as in the
-earlier RISC OS ports) and a simpler automatic start.
+earlier RISC OS ports) and a simpler automatic start; riscos3test makes
+screen updates faster; riscos4test makes full screen a "full window" that
+keeps the desktop running.
 
 ## How it works
 
 | Part | What it is |
 |---|---|
 | Freeciv 3.2.6 | upstream tag `R3_2_6`, built with meson, plus the patches in `patches/freeciv` |
-| SDL2 | the riscos-mesa devkit (20.3.5-9): SDL 2.26 with the RISC OS Wimp video driver and the SharedSoundBuffer sound driver |
+| SDL2 | the riscos-mesa devkit (20.3.5-10h): SDL 2.26 with the RISC OS Wimp video driver and the SharedSoundBuffer sound driver |
 | SDL2_image 2.6.3 | PNG only, decoded by its bundled stb_image |
 | SDL2_ttf 2.20.2 | its bundled FreeType, no HarfBuzz |
 | SDL2_mixer 2.6.3 | WAV and Ogg Vorbis (bundled stb_vorbis) |
@@ -54,6 +56,10 @@ SDL built without GL (like OpenTTD's) would drop it.
 6. **SDL2 client:** only the changed parts of the screen are copied and
    plotted (no texture/renderer), mouse wheel for the map and dialog
    lists, resolution changes at once.
+7. **Window size changes.** The client follows size changes from outside
+   (a mode change in full screen) and takes the full-screen size from the
+   window, which the riscos-mesa driver makes a borderless, screen-size
+   Wimp window.
 
 ## Building
 

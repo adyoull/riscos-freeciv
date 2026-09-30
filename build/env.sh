@@ -13,7 +13,7 @@
 RCF_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 
 : "${GCCSDK_ENV:=/opt/riscos/env}"
-: "${DEVKIT:=$RCF_ROOT/devkit/riscos-mesa-devkit-20.3.5-9}"
+: "${DEVKIT:=$RCF_ROOT/devkit/riscos-mesa-devkit-20.3.5-10h}"
 : "${DL:=$RCF_ROOT/dl}"
 : "${SRC:=$RCF_ROOT/src}"
 : "${STAGE:=$RCF_ROOT/stage}"

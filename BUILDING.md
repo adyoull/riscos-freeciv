@@ -19,7 +19,7 @@ each is listed at the top of `build/fetch-sources.sh`:
 - `freeciv-R3_2_6.tar.gz` (GitHub tag archive), `SDL2_image-2.6.3.tar.gz`,
   `SDL2_ttf-2.20.2.tar.gz`, `SDL2_mixer-2.6.3.tar.gz`, `curl-8.10.1.tar.xz`,
   `sqlite3_3.45.1.orig.tar.xz`
-- `riscos-mesa-devkit-20.3.5-9.tgz`
+- `riscos-mesa-devkit-10h.tgz`
 - `riscos-crossdev-toolchain-1.0-x86_64-linux.tar.xz`, `gccsdk-64c6f81.tar.gz`
 - `unixlib-5.0.2/` (the riscos-unixlib v5.0.2 release files)
 
@@ -74,5 +74,9 @@ Guard RISC OS code with `#ifdef FREECIV_RISCOS` (from `freeciv_config.h`).
 - Nothing may print to stdout/stderr in the desktop (it opens a command
   window): output goes to the files named by `Freeciv$Output` and
   `FreecivServer$Output`.
-- Full screen: the SDL driver stops polling the Wimp, so the server's
-  TaskWindow gets no time. Local games need window mode.
+- Full screen: with riscos-mesa devkit 10h, SDL's
+  `SDL_WINDOW_FULLSCREEN_DESKTOP` is a borderless, screen-size Wimp window
+  that keeps polling, so the server's TaskWindow keeps running. With
+  devkit 9 and earlier, full screen stopped the desktop. Patch 0007
+  makes the client follow `SDL_WINDOWEVENT_RESIZED` (sent after a mode
+  change) and take the full-screen size from the window.
