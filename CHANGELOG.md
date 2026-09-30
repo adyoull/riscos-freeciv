@@ -1,5 +1,13 @@
 # Changes
 
+## 3.2.6-riscos8test (2026-09-30)
+
+- Relinked with UnixLib 5.0.3, which fixes `ctime()`/`asctime()`
+  returning a bad pointer and `read()` into a stack buffer that the
+  program hadn't used yet (a crash, "EMT trap"). Freeciv doesn't use
+  `ctime()`, but the client and server both use `read()` (files and
+  network). No Freeciv code changes.
+
 ## 3.2.6-riscos7test (2026-09-30)
 
 riscos6test on the Pi: quitting works, but took about 10 seconds, and

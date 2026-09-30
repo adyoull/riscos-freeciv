@@ -8,8 +8,8 @@ d4a2e97e180ebc7b19e49e74b5ac60a71ed8bb3757b64128e7629cd27d9ab9b7  gccsdk-64c6f81
 f204e6c4a59df67bd964905e7647306bc31fc8ee79e8e2ee4e871aa72cb27c1f  riscos-crossdev-toolchain-1.0-x86_64-linux.tar.xz
 b2ff8dc1ef25e60e934fa22d75aa5ec999e3055097b1a52e4ed2e5d6e762bdd3  riscos-mesa-devkit-10h.tgz
 e32e817f7b4166a301f60b14a711871bfab7d35c1d7e29b585dfc479ae150aa4  sqlite3_3.45.1.orig.tar.xz
-6e4529d69afdbe8bba5147bc3e0e8c7df21e79788e1e8bdb3757e59f6e7c0240  unixlib-5.0.2/PThreadTicker-0.01.zip
-2d37e8fb054c2a469a017b36cb052f05eb3d8d0f31bf259290d04a8da2c59bd1  unixlib-5.0.2/SHA256SUMS
-bcd012806ec2b28e33633f1badf3b6946a583bad3ffefba672d67873ba812254  unixlib-5.0.2/libunixlib.a
-cabf419e8d55dba55bbd4ee2df81a6c773321f79fb5ad10f38c0da31f04433cc  unixlib-5.0.2/unixlib-riscos.diff
 de781e1962d64545b9d96a01bdebfdd6520613df8b9d8f1d1c926c4b2f551c36  riscos-mesa-devkit-10i.tgz
+be8a797f85c50d359ac65bd70e203744ce23362309ea9c89d5585a4d9d5d8efc  unixlib-5.0.3/PThreadTicker-0.01.zip
+621c360b737c706457657b8fc7631a741c84143d3e1ce17201053f3331545e61  unixlib-5.0.3/SHA256SUMS
+761305fa54046c21fd533e2bf6695d1b637f3c2c4c631773a138a2ecfc0f7ce0  unixlib-5.0.3/libunixlib.a
+972dcea730e5c5ddbfc7f73b05898c14cf14b120cc3b5139a9f8973dc4d460e0  unixlib-5.0.3/unixlib-riscos.diff

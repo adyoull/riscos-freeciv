@@ -2,7 +2,7 @@
 #   . build/env.sh
 #
 # Everything can be overridden from the environment before sourcing.
-#   GCCSDK_ENV  cross toolchain (riscos-crossdev 1.0 + UnixLib 5.0.2 headers/lib)
+#   GCCSDK_ENV  cross toolchain (riscos-crossdev 1.0 + UnixLib $UNIXLIB headers/lib)
 #   DEVKIT      unpacked riscos-mesa devkit (SDL2 with the RISC OS driver, zlib)
 #   DL          source tarballs (see build/SHA256SUMS.txt)
 #   SRC         where sources are unpacked and patched
@@ -24,6 +24,7 @@ RCF_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 : "${JOBS:=$(nproc)}"
 
 FREECIV_VERSION=3.2.6
+UNIXLIB=unixlib-5.0.3
 FREECIV_TAG=R3_2_6
 
 TARGET=arm-riscos-gnueabihf

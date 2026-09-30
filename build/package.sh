@@ -7,7 +7,7 @@
 set -e
 . "$(dirname "$0")/env.sh"
 
-VERSION=${VERSION:-$FREECIV_VERSION-riscos7test}
+VERSION=${VERSION:-$FREECIV_VERSION-riscos8test}
 FC=$SRC/freeciv-$FREECIV_TAG
 B=$FC/build-ro
 DIST=${DIST:-$RCF_ROOT/dist}
@@ -39,8 +39,8 @@ for p in $progs; do
   elf2aif -e "$STAGE/$p.stripped" "$APP/$p,ff8" >/dev/null
 done
 
-# PThreadTicker module (riscos-unixlib 5.0.2 release).
-unzip -p "$DL/unixlib-5.0.2/PThreadTicker-0.01.zip" 'PThreadTicker/!System/310/Modules/PThrTicker' > "$APP/PThrTicker,ffa" 2>/dev/null \
+# PThreadTicker module (riscos-unixlib release, $UNIXLIB).
+unzip -p "$DL/$UNIXLIB/PThreadTicker-0.01.zip" 'PThreadTicker/!System/310/Modules/PThrTicker' > "$APP/PThrTicker,ffa" 2>/dev/null \
   || die "PThrTicker not found in PThreadTicker-0.01.zip"
 [ -s "$APP/PThrTicker,ffa" ] || die "empty PThrTicker"
 

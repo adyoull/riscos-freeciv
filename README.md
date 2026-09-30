@@ -10,7 +10,8 @@ earlier RISC OS ports) and a simpler automatic start; riscos3test makes
 screen updates faster; riscos4test makes full screen a "full window" that
 keeps the desktop running; riscos5test draws the map so that SDL's ARM
 (NEON) blitters can be used; riscos6test stops the client hanging on quit;
-riscos7test makes the log files work and quitting quick.
+riscos7test makes the log files work and quitting quick;
+riscos8test is relinked with UnixLib 5.0.3.
 
 ## How it works
 
@@ -24,7 +25,7 @@ riscos7test makes the log files work and quitting quick.
 | libcurl 8.10.1 | plain HTTP only (no TLS yet) |
 | SQLite 3.45.1 | Freeciv's meson build links it into the server |
 | Lua 5.4, tolua | bundled with Freeciv |
-| Toolchain | riscos-crossdev 1.0 (GCCSDK GCC 10.2) with UnixLib 5.0.2 |
+| Toolchain | riscos-crossdev 1.0 (GCCSDK GCC 10.2) with UnixLib 5.0.3 |
 
 **Why not OpenGL/EGL?** Freeciv's SDL2 client draws everything in software
 into one surface. On RISC OS any GL is Mesa running in software too, so
