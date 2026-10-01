@@ -1,7 +1,7 @@
 #!/bin/bash
 # Check that the linked program has riscos-unixlib's pthread ticker fix
 # (patches/unixlib/unixlib-riscos.diff, UnixLib 5.0.1) built consistently:
-# the start-up code (_syslib.s) must claim the whole 472-byte pthread ticker
+# the start-up code (_syslib.s) must claim the whole pthread ticker
 # block from the RMA (counters and the RMA copy of the ticker routines,
 # used when the PThreadTicker module isn't loaded), and agree with the C
 # side's __pthread_callevery_block_size.
@@ -23,7 +23,9 @@ NM=$GCCSDK_ENV/bin/arm-riscos-gnueabihf-nm
 # The claim: "mov r3, #<size>" then OS_Module (svc 0x2001e) in no_dynamic_area.
 size=$("$OBJDUMP" -d "$ELF" | awk '/^[0-9a-f]+ <no_dynamic_area>:$/{p=1;next} p&&/^$/{exit}
   p&&/mov\tr3, #/{s=$0} p&&/svc\t0x0002001e/{sub(/.*#/,"",s); sub(/[ \t;].*/,"",s); print s; exit}')
-want=472
+# 472 bytes up to 5.0.3.1-rc8; 640 from 5.0.3.1 (the ticker keeps running
+# through Wimp_Poll, MODIFICATIONS K9).
+want=${UNIXLIB_TICKER_BLOCK:-640}
 # __pthread_callevery_block_size, a little-endian word in .data
 addr=$("$NM" "$ELF" | awk '$3=="__pthread_callevery_block_size"{print $1}')
 csize=$("$OBJDUMP" -s -j .data --start-address=0x$addr --stop-address=$(printf '0x%x' $((0x$addr+4))) "$ELF" |

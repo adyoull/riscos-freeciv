@@ -1,5 +1,21 @@
 # Changes
 
+## 3.2.6-riscos10test (2026-10-01)
+
+- Rebuilt and relinked (client, server and the 10h test client) with
+  the **UnixLib 5.0.3.1** release. New since 5.0.3.1-rc8: threads now get
+  time in desktop programs that call Wimp_Poll often. Before, UnixLib's
+  thread timer restarted at every Wimp_Poll, so in an SDL program (which
+  polls more often than every 2 cs) background threads such as SDL's
+  sound mixer only ran while the main thread was busy. That is the
+  likely reason sounds never finished while the game waited on quit
+  (riscos7test).
+- PThreadTicker 0.03 in !Freeciv. Programs built with 5.0.3.1 use only
+  0.03; if an older version is already loaded, they use their own copy
+  of the same code until the next restart, which works the same. The
+  `RMEnsure PThreadTicker 0.01` line stays as it is.
+- No Freeciv code changes.
+
 ## 3.2.6-riscos9test (2026-10-01)
 
 - Relinked with UnixLib 5.0.3.1-rc8 (a pre-release). For Freeciv this

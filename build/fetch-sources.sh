@@ -12,7 +12,7 @@
 #   riscos-mesa devkit      https://github.com/adyoull/riscos-mesa/releases (10i, file riscos-mesa-devkit-10i.tgz; 10h for the A/B test client)
 #   toolchain               https://github.com/adyoull/riscos-crossdev/releases (1.0)
 #   gccsdk-64c6f81.tar.gz   https://github.com/jhamby/riscos-gccsdk (commit 64c6f81)
-#   unixlib-5.0.3.1-rc8/    https://github.com/adyoull/riscos-unixlib/releases (v5.0.3.1-rc8, pre-release)
+#   unixlib-5.0.3.1/        https://github.com/adyoull/riscos-unixlib/releases (v5.0.3.1)
 #   dejavu-fonts-ttf-2.37   (not used yet)
 set -e
 . "$(dirname "$0")/env.sh"

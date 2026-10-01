@@ -22,7 +22,7 @@ each is listed at the top of `build/fetch-sources.sh`:
 - `riscos-mesa-devkit-10i.tgz`, and `riscos-mesa-devkit-10h.tgz` for the
   test builds' A/B client (see below)
 - `riscos-crossdev-toolchain-1.0-x86_64-linux.tar.xz`, `gccsdk-64c6f81.tar.gz`
-- `unixlib-5.0.3.1-rc8/` (the riscos-unixlib v5.0.3.1-rc8 pre-release files: libunixlib.a, unixlib-riscos.diff, PThreadTicker-0.02.zip, SHA256SUMS; the version is `UNIXLIB` in build/env.sh)
+- `unixlib-5.0.3.1/` (the riscos-unixlib v5.0.3.1 release files: libunixlib.a, unixlib-riscos.diff, PThreadTicker-0.03.zip, SHA256SUMS; the version is `UNIXLIB` in build/env.sh)
 
 ## Steps
 
@@ -59,7 +59,7 @@ Guard RISC OS code with `#ifdef FREECIV_RISCOS` (from `freeciv_config.h`).
 - `tools/check-stack-probes.py <elf>`: every function with a frame of 4 KB
   or more must probe the stack (Freeciv has ~430 such functions; 0 unprobed).
 - `tools/check-unixlib.sh <elf>`: UnixLib's pthread ticker block is
-  consistent (472 bytes).
+  consistent (640 bytes from UnixLib 5.0.3.1; 472 before).
 - `tests/no-icu/run.sh`: the ICU-free string functions agree with ICU.
 - Unaligned access: Freeciv builds with `-Wcast-align`, which on this
   target (no unaligned access) warns about every risky cast; the only
