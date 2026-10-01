@@ -1,7 +1,7 @@
 #!/bin/bash
 # Set up the cross toolchain in $GCCSDK_ENV:
 #   1. unpack riscos-crossdev's prebuilt toolchain 1.0 (GCC 10.2, UnixLib 5.0.1)
-#   2. upgrade UnixLib to the $UNIXLIB release (5.0.3) (library + the three headers that
+#   2. upgrade UnixLib to the $UNIXLIB release (set in env.sh) (library + the three headers that
 #      changed: sys/stat.h, sys/mman.h, unistd.h - large-file support)
 #   3. delete libtool .la files (and the shared libraries, see 4): they hold the build machine's absolute paths,
 #      which break libtool links once the toolchain has moved.

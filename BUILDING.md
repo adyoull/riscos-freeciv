@@ -22,13 +22,13 @@ each is listed at the top of `build/fetch-sources.sh`:
 - `riscos-mesa-devkit-10i.tgz`, and `riscos-mesa-devkit-10h.tgz` for the
   test builds' A/B client (see below)
 - `riscos-crossdev-toolchain-1.0-x86_64-linux.tar.xz`, `gccsdk-64c6f81.tar.gz`
-- `unixlib-5.0.3/` (the riscos-unixlib v5.0.3 release files: libunixlib.a, unixlib-riscos.diff, PThreadTicker-0.01.zip, SHA256SUMS)
+- `unixlib-5.0.3.1-rc8/` (the riscos-unixlib v5.0.3.1-rc8 pre-release files: libunixlib.a, unixlib-riscos.diff, PThreadTicker-0.02.zip, SHA256SUMS; the version is `UNIXLIB` in build/env.sh)
 
 ## Steps
 
 | Script | Does |
 |---|---|
-| `build/prepare-toolchain.sh` | unpacks the toolchain into `/opt/riscos` (`GCCSDK_ENV`), installs UnixLib 5.0.3 (library + its changed headers), deletes `.la` and `.so` files (they carry the build machine's paths / make meson link shared) |
+| `build/prepare-toolchain.sh` | unpacks the toolchain into `/opt/riscos` (`GCCSDK_ENV`), installs UnixLib (library + its changed headers), deletes `.la` and `.so` files (they carry the build machine's paths / make meson link shared) |
 | `build/fetch-sources.sh` | checks checksums, unpacks the devkit into `devkit/`, and Freeciv into `src/freeciv-R3_2_6` as a git work tree with the patches applied |
 | `build/build-deps.sh [image ttf mixer curl sqlite]` | cross-builds the static libraries into `stage/` (logs `stage/build-*.log`) |
 | `build/build-hosttools.sh` | builds `tolua` for the build machine (meson needs a native one in cross builds) |

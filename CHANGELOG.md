@@ -1,5 +1,16 @@
 # Changes
 
+## 3.2.6-riscos9test (2026-10-01)
+
+- Relinked with UnixLib 5.0.3.1-rc8 (a pre-release). For Freeciv this
+  brings: heaps that can grow past 128 MB (RISC OS 5 caps each dynamic
+  area at 128 MB; Freeciv's heaps live in dynamic areas), sleeps and the
+  monotonic clock fixed, `_exit()` and fork fixes, and fixes from a
+  review of UnixLib's own changes.
+- PThreadTicker 0.02 (counts its users with interrupts off; same
+  interface). !Freeciv still loads it with `RMEnsure PThreadTicker 0.01`.
+- No Freeciv code changes.
+
 ## 3.2.6-riscos8test (2026-09-30)
 
 - Relinked with UnixLib 5.0.3, which fixes `ctime()`/`asctime()`

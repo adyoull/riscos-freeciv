@@ -7,7 +7,7 @@
 set -e
 . "$(dirname "$0")/env.sh"
 
-VERSION=${VERSION:-$FREECIV_VERSION-riscos8test}
+VERSION=${VERSION:-$FREECIV_VERSION-riscos9test}
 FC=$SRC/freeciv-$FREECIV_TAG
 B=$FC/build-ro
 DIST=${DIST:-$RCF_ROOT/dist}
@@ -40,8 +40,9 @@ for p in $progs; do
 done
 
 # PThreadTicker module (riscos-unixlib release, $UNIXLIB).
-unzip -p "$DL/$UNIXLIB/PThreadTicker-0.01.zip" 'PThreadTicker/!System/310/Modules/PThrTicker' > "$APP/PThrTicker,ffa" 2>/dev/null \
-  || die "PThrTicker not found in PThreadTicker-0.01.zip"
+ticker=$(ls "$DL/$UNIXLIB"/PThreadTicker-*.zip | tail -1)
+unzip -p "$ticker" 'PThreadTicker/!System/310/Modules/PThrTicker' > "$APP/PThrTicker,ffa" 2>/dev/null \
+  || die "PThrTicker not found in $ticker"
 [ -s "$APP/PThrTicker,ffa" ] || die "empty PThrTicker"
 
 # Data. Left out: the CJK fonts (only used with Chinese, Japanese or

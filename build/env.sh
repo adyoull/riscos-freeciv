@@ -24,7 +24,7 @@ RCF_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 : "${JOBS:=$(nproc)}"
 
 FREECIV_VERSION=3.2.6
-UNIXLIB=unixlib-5.0.3
+UNIXLIB=unixlib-5.0.3.1-rc8
 FREECIV_TAG=R3_2_6
 
 TARGET=arm-riscos-gnueabihf
