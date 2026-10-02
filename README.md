@@ -13,7 +13,8 @@ keeps the desktop running; riscos5test draws the map so that SDL's ARM
 riscos7test makes the log files work and quitting quick;
 riscos8test is relinked with UnixLib 5.0.3, riscos9test with
 UnixLib 5.0.3.1-rc8, riscos10test with the UnixLib 5.0.3.1 release; riscos11test
-gives the sound a larger buffer so music doesn't break up.
+gives the sound a larger buffer so music doesn't break up;
+riscos12test only collects its timing statistics when logging is on.
 
 ## How it works
 

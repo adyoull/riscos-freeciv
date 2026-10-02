@@ -1,0 +1,88 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Andrew Youll <adyoull@users.noreply.github.com>
+Date: Fri, 2 Oct 2026 17:20:52 +0100
+Subject: [PATCH] RISC OS: statistics only when logging
+
+The 10-second statistics (busy, map drawing, screen updates) read the
+timer around every wait, map redraw and screen update, even when nothing
+was logged. Now they are collected only with verbose logging (--debug 3,
+which !Run passes when Freeciv$Log is set), so a normal run does no
+extra timer reads.
+---
+ client/gui-sdl2/graphics.c |  9 +++++++--
+ client/gui-sdl2/gui_main.c | 20 +++++++++++++++++---
+ 2 files changed, 24 insertions(+), 5 deletions(-)
+
+diff --git a/client/gui-sdl2/graphics.c b/client/gui-sdl2/graphics.c
+index f519a95..93fa647 100644
+--- a/client/gui-sdl2/graphics.c
++++ b/client/gui-sdl2/graphics.c
+@@ -805,7 +805,10 @@ void update_main_screen(void)
+   if (render_dirty) {
+     SDL_Surface *ws = SDL_GetWindowSurface(main_data.screen);
+     SDL_BlendMode mode;
+-    Uint64 t0 = SDL_GetPerformanceCounter();
++    /* Timing only for the log's statistics (verbose logging), so a
++     * normal run doesn't read the timer on every update. */
++    bool timed = (log_get_level() >= LOG_VERBOSE);
++    Uint64 t0 = timed ? SDL_GetPerformanceCounter() : 0;
+     int i;
+ 
+     if (ws == NULL) {
+@@ -837,7 +840,9 @@ void update_main_screen(void)
+     present_all = FALSE;
+     render_dirty = FALSE;
+     stat_updates++;
+-    stat_ticks += SDL_GetPerformanceCounter() - t0;
++    if (timed) {
++      stat_ticks += SDL_GetPerformanceCounter() - t0;
++    }
+   }
+   return;
+ #endif /* DIRECT_PRESENT */
+diff --git a/client/gui-sdl2/gui_main.c b/client/gui-sdl2/gui_main.c
+index bb8fe35..4542c47 100644
+--- a/client/gui-sdl2/gui_main.c
++++ b/client/gui-sdl2/gui_main.c
+@@ -960,8 +960,14 @@ static Uint64 riscos_idle_ticks = 0;
+ **************************************************************************/
+ static void riscos_idle_delay(Uint32 ms)
+ {
+-  Uint64 t0 = SDL_GetPerformanceCounter();
++  Uint64 t0;
+ 
++  if (log_get_level() < LOG_VERBOSE) {
++    /* No statistics without verbose logging (Freeciv$Log in !Run). */
++    SDL_Delay(ms);
++    return;
++  }
++  t0 = SDL_GetPerformanceCounter();
+   SDL_Delay(ms);
+   riscos_idle_ticks += SDL_GetPerformanceCounter() - t0;
+ }
+@@ -980,6 +986,9 @@ void riscos_map_timing(bool start)
+ {
+   static Uint64 t0 = 0;
+ 
++  if (log_get_level() < LOG_VERBOSE) {
++    return;
++  }
+   if (start) {
+     t0 = SDL_GetPerformanceCounter();
+   } else if (t0 != 0) {
+@@ -1012,8 +1021,13 @@ static void riscos_log_stats(void)
+ {
+   static Uint64 last = 0;
+   static bool formats_logged = FALSE;
+-  Uint64 now = SDL_GetPerformanceCounter();
+-  Uint64 freq = SDL_GetPerformanceFrequency();
++  Uint64 now, freq;
++
++  if (log_get_level() < LOG_VERBOSE) {
++    return;
++  }
++  now = SDL_GetPerformanceCounter();
++  freq = SDL_GetPerformanceFrequency();
+ 
+   if (!formats_logged && mapview.store != NULL) {
+     riscos_log_formats();

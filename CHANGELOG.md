@@ -1,5 +1,13 @@
 # Changes
 
+## 3.2.6-riscos12test (2026-10-02)
+
+- Logging stays off by default (the `Set Freeciv$Log 1` line in
+  `!Freeciv.!Run` is commented out). The 10-second statistics used to
+  read the timer around every wait, map redraw and screen update even
+  without logging; now they only run when logging is on (patch 0012),
+  so a normal game does no extra work for them.
+
 ## 3.2.6-riscos11test (2026-10-02)
 
 Chris Gransden on riscos10test: the background music comes and goes,
