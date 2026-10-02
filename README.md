@@ -12,7 +12,8 @@ keeps the desktop running; riscos5test draws the map so that SDL's ARM
 (NEON) blitters can be used; riscos6test stops the client hanging on quit;
 riscos7test makes the log files work and quitting quick;
 riscos8test is relinked with UnixLib 5.0.3, riscos9test with
-UnixLib 5.0.3.1-rc8, riscos10test with the UnixLib 5.0.3.1 release.
+UnixLib 5.0.3.1-rc8, riscos10test with the UnixLib 5.0.3.1 release; riscos11test
+gives the sound a larger buffer so music doesn't break up.
 
 ## How it works
 

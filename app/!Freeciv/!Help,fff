@@ -49,6 +49,9 @@ Notes and limits
   off to go back to the window.
 - The mouse wheel scrolls the map (with Shift: left and right) and the
   lists in dialogs.
+- Music has two switches under Options > Local options > Sound: "Enable
+  menu music" (before a game) and "Enable in-game music". Each only
+  affects its own music, and stopping fades out over 2 seconds.
 - English only in this build.
 - The server list from the Internet (metaserver) and modpack downloads
   need https, which this build doesn't have yet. You can still connect to

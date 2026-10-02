@@ -1,5 +1,22 @@
 # Changes
 
+## 3.2.6-riscos11test (2026-10-02)
+
+Chris Gransden on riscos10test: the background music comes and goes,
+and turning it off in the options had no effect.
+
+- **Music breaking up (patch 0011):** SDL mixes sound on its own thread,
+  which on RISC OS only runs while Freeciv's task is running. The client
+  asked for a 1024-sample buffer, 23 ms of sound, so another task holding
+  the processor for longer than that left the music with nothing to
+  play. It now uses 4096 samples (93 ms), as Freeciv already does on
+  Windows. The log line naming the sound driver also gives the rate,
+  channels and buffer size.
+- **Turning music off:** Freeciv has two switches, "Enable menu music"
+  and "Enable in-game music", and each only acts on its own music, so
+  turning off menu music during a game changes nothing. !Help now says
+  so.
+
 ## 3.2.6-riscos10test (2026-10-01)
 
 - Rebuilt and relinked (client, server and the 10h test client) with

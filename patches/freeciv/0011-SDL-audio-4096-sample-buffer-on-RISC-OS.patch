@@ -1,0 +1,53 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Andrew Youll <adyoull@users.noreply.github.com>
+Date: Fri, 2 Oct 2026 17:11:19 +0100
+Subject: [PATCH] SDL audio: 4096-sample buffer on RISC OS
+
+Chris Gransden reported the background music coming and going. SDL
+mixes on its own thread, which on RISC OS only runs while the client's
+task is paged in, so another task holding the processor for more than
+one 1024-sample buffer (23 ms at 44.1 kHz) starved the music. Use 4096
+samples (93 ms), as Freeciv already does on Windows. The log line naming
+the audio driver also gives the rate, channels and buffer size.
+---
+ client/audio_sdl.c | 20 ++++++++++++++++----
+ 1 file changed, 16 insertions(+), 4 deletions(-)
+
+diff --git a/client/audio_sdl.c b/client/audio_sdl.c
+index f7fee77..36d2d8a 100644
+--- a/client/audio_sdl.c
++++ b/client/audio_sdl.c
+@@ -51,7 +51,11 @@ struct sample {
+ /* Sounds don't sound good on Windows unless the buffer size is 4k,
+  * but this seems to cause strange behavior on other systems,
+  * such as a delay before playing the sound. */
+-#ifdef FREECIV_MSWINDOWS
++#if defined(FREECIV_MSWINDOWS) || defined(FREECIV_RISCOS)
++/* RISC OS: SDL mixes on its own thread, which only runs while this task
++ * is paged in. Another task that holds the processor for more than a
++ * buffer's worth (1024 samples is 23 ms at 44.1 kHz) made music break
++ * up; 4096 (93 ms) gives the mixer room. */
+ const size_t buf_size = 4096;
+ #else
+ const size_t buf_size = 1024;
+@@ -477,9 +481,17 @@ static bool sdl_audio_init(struct audio_plugin *self)
+                         "MIX_PROP_PLAY_LOOPS_NUMBER", -1);
+ #else  /* AUDIO_SDL3 */
+   Mix_AllocateChannels(MIX_CHANNELS);
+-  log_verbose("Audio: SDL audio driver \"%s\"",
+-              SDL_GetCurrentAudioDriver() != NULL
+-              ? SDL_GetCurrentAudioDriver() : "?");
++  {
++    int freq = 0, chans = 0;
++    Uint16 fmt = 0;
++
++    (void) Mix_QuerySpec(&freq, &fmt, &chans);
++    log_verbose("Audio: SDL audio driver \"%s\", %d Hz, %d channels, "
++                "%u-sample buffer",
++                SDL_GetCurrentAudioDriver() != NULL
++                ? SDL_GetCurrentAudioDriver() : "?",
++                freq, chans, (unsigned) buf_size);
++  }
+ #endif /* AUDIO_SDL3 */
+   for (i = 0; i < MIX_CHANNELS; i++) {
+ #ifdef AUDIO_SDL3
