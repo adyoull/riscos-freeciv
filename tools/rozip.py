@@ -45,6 +45,9 @@ def main():
     out = sys.argv[1]
     with zipfile.ZipFile(out, 'w') as zf:
         for top in sys.argv[2:]:
+            if os.path.isfile(top):
+                add(zf, top)
+                continue
             for root, dirs, files in os.walk(top):
                 dirs.sort()
                 zi = zipfile.ZipInfo(root.replace(os.sep, '/') + '/')

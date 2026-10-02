@@ -34,6 +34,7 @@ each is listed at the top of `build/fetch-sources.sh`:
 | `build/build-hosttools.sh` | builds `tolua` for the build machine (meson needs a native one in cross builds) |
 | `build/build-freeciv.sh [reconfigure]` | meson cross build (`build-ro/`), cross file in `stage/riscos-cross.ini`; then links the same client again with `AB_DEVKIT`'s libraries as `freeciv-sdl2-10h` (test builds; `AB_DEVKIT=` skips it) |
 | `build/package.sh` | `dist/!Freeciv` and `dist/Freeciv-<VERSION>.zip` (RISC OS filetypes in the zip's extra fields) |
+| `build/package-update.sh <from> <files>` | a small zip with only the `!Freeciv` files changed since an earlier build (plus Version and the patches), for testers who already have it; the full zip is too big to email |
 
 Settings are in `build/env.sh` (paths, `RO_CFLAGS`). Compiler flags:
 `-O2 -mfpu=vfpv3 -mfloat-abi=hard -mtune=cortex-a72 -fstack-clash-protection`
