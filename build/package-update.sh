@@ -21,6 +21,7 @@ U=$TMP/'!Freeciv'
 mkdir -p "$U/docs/patches"
 for f in "$@"; do
   [ -e "$APP/$f" ] || die "no $APP/$f"
+  mkdir -p "$(dirname "$U/$f")"
   cp -p "$APP/$f" "$U/$f"
 done
 cp -p "$APP/docs/Version,fff" "$U/docs/"

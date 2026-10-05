@@ -19,20 +19,21 @@ each is listed at the top of `build/fetch-sources.sh`:
 - `freeciv-R3_2_6.tar.gz` (GitHub tag archive), `SDL2_image-2.6.3.tar.gz`,
   `SDL2_ttf-2.20.2.tar.gz`, `SDL2_mixer-2.6.3.tar.gz`, `curl-8.10.1.tar.xz`,
   `sqlite3_3.45.1.orig.tar.xz`
-- `riscos-mesa-devkit-10i.tgz`, and `riscos-mesa-devkit-10h.tgz` for the
-  test builds' A/B client (see below)
-- `riscos-crossdev-toolchain-1.0-x86_64-linux.tar.xz`, `gccsdk-64c6f81.tar.gz`
-- `unixlib-5.0.3.1/` (the riscos-unixlib v5.0.3.1 release files: libunixlib.a, unixlib-riscos.diff, PThreadTicker-0.03.zip, SHA256SUMS; the version is `UNIXLIB` in build/env.sh)
+- `riscos-mesa-devkit-12f.tgz` (`DEVKIT` in build/env.sh)
+- `riscos-crossdev-toolchain-1.3-x86_64-linux.tar.xz` (`CROSSDEV`): GCC 10.2
+  with UnixLib 5.0.3.2 and PThreadTicker 0.03; it links static programs only
+- only to try another UnixLib release (`UNIXLIB` in build/env.sh):
+  `gccsdk-64c6f81.tar.gz` and the release's files in `dl/<UNIXLIB>/`
 
 ## Steps
 
 | Script | Does |
 |---|---|
-| `build/prepare-toolchain.sh` | unpacks the toolchain into `/opt/riscos` (`GCCSDK_ENV`), installs UnixLib (library + its changed headers), deletes `.la` and `.so` files (they carry the build machine's paths / make meson link shared) |
+| `build/prepare-toolchain.sh` | unpacks the toolchain into `/opt/riscos` (`GCCSDK_ENV`), installs `UNIXLIB` over the toolchain's UnixLib if set, deletes `.la` and `.so` files (they carry the build machine's paths / make meson link shared) |
 | `build/fetch-sources.sh` | checks checksums, unpacks the devkit into `devkit/`, and Freeciv into `src/freeciv-R3_2_6` as a git work tree with the patches applied |
 | `build/build-deps.sh [image ttf mixer curl sqlite]` | cross-builds the static libraries into `stage/` (logs `stage/build-*.log`) |
 | `build/build-hosttools.sh` | builds `tolua` for the build machine (meson needs a native one in cross builds) |
-| `build/build-freeciv.sh [reconfigure]` | meson cross build (`build-ro/`), cross file in `stage/riscos-cross.ini`; then links the same client again with `AB_DEVKIT`'s libraries as `freeciv-sdl2-10h` (test builds; `AB_DEVKIT=` skips it) |
+| `build/build-freeciv.sh [reconfigure]` | meson cross build (`build-ro/`), cross file in `stage/riscos-cross.ini`; with `AB_DEVKIT` set, also links the same client with that devkit's libraries as `freeciv-sdl2-10h`, for speed comparisons (off by default) |
 | `build/package.sh` | `dist/!Freeciv` and `dist/Freeciv-<VERSION>.zip` (RISC OS filetypes in the zip's extra fields) |
 | `build/package-update.sh <from> <files>` | a small zip with only the `!Freeciv` files changed since an earlier build (plus Version and the patches), for testers who already have it; the full zip is too big to email |
 
@@ -88,6 +89,6 @@ Guard RISC OS code with `#ifdef FREECIV_RISCOS` (from `freeciv_config.h`).
   store alpha-free and converts every loaded image to the screen buffer's
   format. The log line "RISC OS: program ...; pixel formats: ..." shows
   the formats in use.
-- A/B test: `*Set Freeciv$SDL 10h` makes !Run start `freeciv-sdl2-10h`
-  (the same objects linked with devkit 10h's SDL, without the ARM
-  routines). Compare the "busy" and "map drawing" figures in the log.
+- A/B builds (`AB_DEVKIT`, off by default) add a `freeciv-sdl2-10h` client
+  linked with another devkit's SDL. To run it, set `Freeciv$Prog` to its
+  name in !Run, and compare the "busy" and "map drawing" log figures.

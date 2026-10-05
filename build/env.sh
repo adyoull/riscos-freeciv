@@ -2,7 +2,7 @@
 #   . build/env.sh
 #
 # Everything can be overridden from the environment before sourcing.
-#   GCCSDK_ENV  cross toolchain (riscos-crossdev 1.0 + UnixLib $UNIXLIB headers/lib)
+#   GCCSDK_ENV  cross toolchain (riscos-crossdev $CROSSDEV, with UnixLib and PThreadTicker)
 #   DEVKIT      unpacked riscos-mesa devkit (SDL2 with the RISC OS driver, zlib)
 #   DL          source tarballs (see build/SHA256SUMS.txt)
 #   SRC         where sources are unpacked and patched
@@ -13,10 +13,10 @@
 RCF_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 
 : "${GCCSDK_ENV:=/opt/riscos/env}"
-: "${DEVKIT:=$RCF_ROOT/devkit/riscos-mesa-devkit-10i}"
-# Test builds only: a second client linked with this devkit's SDL, to
-# compare speeds (freeciv-sdl2-10h). Set AB_DEVKIT= (empty) to skip it.
-: "${AB_DEVKIT=$RCF_ROOT/devkit/riscos-mesa-devkit-20.3.5-10h}"
+: "${DEVKIT:=$RCF_ROOT/devkit/riscos-mesa-devkit-12f}"
+# Speed comparisons only: a second client linked with another devkit's SDL
+# (freeciv-sdl2-10h when set to devkit 10h). Off by default.
+: "${AB_DEVKIT=}"
 : "${DL:=$RCF_ROOT/dl}"
 : "${SRC:=$RCF_ROOT/src}"
 : "${STAGE:=$RCF_ROOT/stage}"
@@ -24,7 +24,14 @@ RCF_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 : "${JOBS:=$(nproc)}"
 
 FREECIV_VERSION=3.2.6
-UNIXLIB=unixlib-5.0.3.1
+# The toolchain: riscos-crossdev's prebuilt release, which includes UnixLib
+# (1.3: UnixLib 5.0.3.2, static linking only) and PThreadTicker.
+CROSSDEV=1.3
+# To try a UnixLib release the toolchain doesn't have yet, set UNIXLIB to
+# its directory in $DL (libunixlib.a, unixlib-riscos.diff,
+# PThreadTicker-*.zip, SHA256SUMS); prepare-toolchain.sh installs it over
+# the toolchain's. Empty: the toolchain's own.
+: "${UNIXLIB=}"
 FREECIV_TAG=R3_2_6
 
 TARGET=arm-riscos-gnueabihf

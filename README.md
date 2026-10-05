@@ -14,21 +14,23 @@ riscos7test makes the log files work and quitting quick;
 riscos8test is relinked with UnixLib 5.0.3, riscos9test with
 UnixLib 5.0.3.1-rc8, riscos10test with the UnixLib 5.0.3.1 release; riscos11test
 gives the sound a larger buffer so music doesn't break up;
-riscos12test only collects its timing statistics when logging is on.
+riscos12test only collects its timing statistics when logging is on;
+riscos13test is rebuilt with riscos-crossdev 1.3 (UnixLib 5.0.3.2) and
+riscos-mesa devkit 12f.
 
 ## How it works
 
 | Part | What it is |
 |---|---|
 | Freeciv 3.2.6 | upstream tag `R3_2_6`, built with meson, plus the patches in `patches/freeciv` |
-| SDL2 | the riscos-mesa devkit (10i): SDL 2.26 with the RISC OS Wimp video driver and the SharedSoundBuffer sound driver |
+| SDL2 | the riscos-mesa devkit (12f): SDL 2.26 with the RISC OS Wimp video driver and the SharedSoundBuffer sound driver |
 | SDL2_image 2.6.3 | PNG only, decoded by its bundled stb_image |
 | SDL2_ttf 2.20.2 | its bundled FreeType, no HarfBuzz |
 | SDL2_mixer 2.6.3 | WAV and Ogg Vorbis (bundled stb_vorbis) |
 | libcurl 8.10.1 | plain HTTP only (no TLS yet) |
 | SQLite 3.45.1 | Freeciv's meson build links it into the server |
 | Lua 5.4, tolua | bundled with Freeciv |
-| Toolchain | riscos-crossdev 1.0 (GCCSDK GCC 10.2) with UnixLib 5.0.3.1 |
+| Toolchain | riscos-crossdev 1.3 (GCCSDK GCC 10.2) with UnixLib 5.0.3.2 |
 
 **Why not OpenGL/EGL?** Freeciv's SDL2 client draws everything in software
 into one surface. On RISC OS any GL is Mesa running in software too, so
@@ -69,7 +71,7 @@ SDL built without GL (like OpenTTD's) would drop it.
 8. **Map without alpha.** The map is drawn onto a surface without alpha,
    and all images get the screen buffer's pixel format, so SDL can blend
    the tiles and units with its ARM NEON/SIMD routines (riscos-mesa
-   devkit 10i). The log also times the map drawing.
+   devkit 10i and later). The log also times the map drawing.
 9. **Quitting.** The wait for the quit sound gives up after 5 seconds
    (a stalled sound output kept the client from exiting), and a quit
    request is never lost in a dialog's own event loop. On RISC OS,

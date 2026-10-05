@@ -4,12 +4,6 @@
 73a4b0e99596a09fa5924a4fb7e4b995a85fda0d18a2c02ab9cf134bebce04ee  curl-8.10.1.tar.xz
 7576310b219e04159d35ff61dd4a4ec4cdba4f35c00e002a136f00e96a908b0a  dejavu-fonts-ttf-2.37.zip
 34cf46e38f5dc5df1dcc794f3056a21535e92b35dec7a3b1f944deaf8ff36ce0  freeciv-R3_2_6.tar.gz
-d4a2e97e180ebc7b19e49e74b5ac60a71ed8bb3757b64128e7629cd27d9ab9b7  gccsdk-64c6f81.tar.gz
-f204e6c4a59df67bd964905e7647306bc31fc8ee79e8e2ee4e871aa72cb27c1f  riscos-crossdev-toolchain-1.0-x86_64-linux.tar.xz
-b2ff8dc1ef25e60e934fa22d75aa5ec999e3055097b1a52e4ed2e5d6e762bdd3  riscos-mesa-devkit-10h.tgz
 e32e817f7b4166a301f60b14a711871bfab7d35c1d7e29b585dfc479ae150aa4  sqlite3_3.45.1.orig.tar.xz
-de781e1962d64545b9d96a01bdebfdd6520613df8b9d8f1d1c926c4b2f551c36  riscos-mesa-devkit-10i.tgz
-a5e9e925ba416986d99fbf0402ca8887062bd3e568f1b58d3fd2284d6ac60658  unixlib-5.0.3.1/PThreadTicker-0.03.zip
-2dc0cacd295bfd0d3e4c05ce09bda133127e04dfab8e07c778ab1e32960fb138  unixlib-5.0.3.1/SHA256SUMS
-fa98152f7e05313aa94d15004c5011d7e2cfec92623adc467d4d50a23368354e  unixlib-5.0.3.1/libunixlib.a
-1209261295caa39ead46ecbc01e7c510da8bd2905fe8738ffb0dab7e2a557f10  unixlib-5.0.3.1/unixlib-riscos.diff
+bcdb35fbda9315f845bf207675c8a6e62b383005a4b0e35eea1007a717da9914  riscos-crossdev-toolchain-1.3-x86_64-linux.tar.xz
+9046d20daeecaa46b2ddfec3ef6d18a33ded7a8840eff30a32239d1482e82313  riscos-mesa-devkit-12f.tgz

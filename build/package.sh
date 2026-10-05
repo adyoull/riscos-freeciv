@@ -7,7 +7,7 @@
 set -e
 . "$(dirname "$0")/env.sh"
 
-VERSION=${VERSION:-$FREECIV_VERSION-riscos12test}
+VERSION=${VERSION:-$FREECIV_VERSION-riscos13test}
 FC=$SRC/freeciv-$FREECIV_TAG
 B=$FC/build-ro
 DIST=${DIST:-$RCF_ROOT/dist}
@@ -39,10 +39,15 @@ for p in $progs; do
   elf2aif -e "$STAGE/$p.stripped" "$APP/$p,ff8" >/dev/null
 done
 
-# PThreadTicker module (riscos-unixlib release, $UNIXLIB).
-ticker=$(ls "$DL/$UNIXLIB"/PThreadTicker-*.zip | tail -1)
-unzip -p "$ticker" 'PThreadTicker/!System/310/Modules/PThrTicker' > "$APP/PThrTicker,ffa" 2>/dev/null \
-  || die "PThrTicker not found in $ticker"
+# PThreadTicker module: the toolchain's copy (riscos-crossdev ships the one
+# that goes with its UnixLib), or the one from $UNIXLIB when that is set.
+if [ -n "$UNIXLIB" ]; then
+  ticker=$(ls "$DL/$UNIXLIB"/PThreadTicker-*.zip | tail -1)
+  unzip -p "$ticker" 'PThreadTicker/!System/310/Modules/PThrTicker' > "$APP/PThrTicker,ffa" 2>/dev/null \
+    || die "PThrTicker not found in $ticker"
+else
+  cp "$GCCSDK_ENV/riscos/PThrTicker,ffa" "$APP/PThrTicker,ffa" || die "no PThrTicker in the toolchain"
+fi
 [ -s "$APP/PThrTicker,ffa" ] || die "empty PThrTicker"
 
 # Data. Left out: the CJK fonts (only used with Chinese, Japanese or

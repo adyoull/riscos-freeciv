@@ -1,5 +1,26 @@
 # Changes
 
+## 3.2.6-riscos13test (2026-10-05)
+
+Rebuilt from clean (toolchain, every library and Freeciv) against the
+current libraries. No Freeciv code changes.
+
+- **Toolchain: riscos-crossdev 1.3** (was 1.0 with UnixLib installed over
+  it). It includes **UnixLib 5.0.3.2** (built from the same change set as
+  the UnixLib release, with the same exported symbols) and PThreadTicker
+  0.03, and links static programs only. 5.0.3.2 adds `LLONG_MIN` as a
+  `long long`, the `getserv*_r` functions and eventfd fixes; Freeciv
+  needs none of them, and nothing else changes for it.
+  `build/prepare-toolchain.sh` now only installs a separate UnixLib when
+  `UNIXLIB` is set in `build/env.sh`, and !Freeciv's PThrTicker comes
+  from the toolchain.
+- **SDL: riscos-mesa devkit 12f** (was 10i). Same headers. Its SDL
+  includes riscos-mesa's later fixes, among them keys that repeat at the
+  keyboard's own rate instead of on every poll.
+- The `freeciv-sdl2-10h` comparison client is no longer built or shipped
+  (the zip is about 5MB smaller), and !Run no longer looks for it. Set
+  `AB_DEVKIT` in `build/env.sh` to build it again.
+
 ## 3.2.6-riscos12test (2026-10-02)
 
 - Logging stays off by default (the `Set Freeciv$Log 1` line in
