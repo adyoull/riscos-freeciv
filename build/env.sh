@@ -13,7 +13,7 @@
 RCF_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 
 : "${GCCSDK_ENV:=/opt/riscos/env}"
-: "${DEVKIT:=$RCF_ROOT/devkit/riscos-mesa-devkit-12f}"
+: "${DEVKIT:=$RCF_ROOT/devkit/riscos-mesa-devkit-20.3.5-12}"
 # Speed comparisons only: a second client linked with another devkit's SDL
 # (freeciv-sdl2-10h when set to devkit 10h). Off by default.
 : "${AB_DEVKIT=}"

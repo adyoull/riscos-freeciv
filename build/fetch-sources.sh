@@ -9,7 +9,7 @@
 #   SDL2_image/ttf/mixer    https://github.com/libsdl-org/SDL_{image,ttf,mixer}/releases
 #   curl-8.10.1.tar.xz      https://github.com/curl/curl/releases
 #   sqlite3_3.45.1.orig     https://archive.ubuntu.com/ubuntu/pool/main/s/sqlite3/
-#   riscos-mesa devkit      https://github.com/adyoull/riscos-mesa/releases (riscos-mesa-devkit-12f.tgz)
+#   riscos-mesa devkit      https://github.com/adyoull/riscos-mesa/releases (v20.3.5-12, riscos-mesa-devkit-20.3.5-12.tgz)
 #   toolchain               https://github.com/adyoull/riscos-crossdev/releases (1.3: UnixLib 5.0.3.2)
 #   only with UNIXLIB set (env.sh): gccsdk-64c6f81.tar.gz from
 #     https://github.com/jhamby/riscos-gccsdk (commit 64c6f81), and the

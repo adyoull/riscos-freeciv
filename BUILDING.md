@@ -19,7 +19,7 @@ each is listed at the top of `build/fetch-sources.sh`:
 - `freeciv-R3_2_6.tar.gz` (GitHub tag archive), `SDL2_image-2.6.3.tar.gz`,
   `SDL2_ttf-2.20.2.tar.gz`, `SDL2_mixer-2.6.3.tar.gz`, `curl-8.10.1.tar.xz`,
   `sqlite3_3.45.1.orig.tar.xz`
-- `riscos-mesa-devkit-12f.tgz` (`DEVKIT` in build/env.sh)
+- `riscos-mesa-devkit-20.3.5-12.tgz` (`DEVKIT` in build/env.sh; riscos-mesa release v20.3.5-12)
 - `riscos-crossdev-toolchain-1.3-x86_64-linux.tar.xz` (`CROSSDEV`): GCC 10.2
   with UnixLib 5.0.3.2 and PThreadTicker 0.03; it links static programs only
 - only to try another UnixLib release (`UNIXLIB` in build/env.sh):

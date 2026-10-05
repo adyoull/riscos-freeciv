@@ -16,14 +16,15 @@ UnixLib 5.0.3.1-rc8, riscos10test with the UnixLib 5.0.3.1 release; riscos11test
 gives the sound a larger buffer so music doesn't break up;
 riscos12test only collects its timing statistics when logging is on;
 riscos13test is rebuilt with riscos-crossdev 1.3 (UnixLib 5.0.3.2) and
-riscos-mesa devkit 12f.
+riscos-mesa devkit 12f; riscos14test with the riscos-mesa 20.3.5-12
+release.
 
 ## How it works
 
 | Part | What it is |
 |---|---|
 | Freeciv 3.2.6 | upstream tag `R3_2_6`, built with meson, plus the patches in `patches/freeciv` |
-| SDL2 | the riscos-mesa devkit (12f): SDL 2.26 with the RISC OS Wimp video driver and the SharedSoundBuffer sound driver |
+| SDL2 | the riscos-mesa devkit (20.3.5-12): SDL 2.26 with the RISC OS Wimp video driver and the SharedSoundBuffer sound driver |
 | SDL2_image 2.6.3 | PNG only, decoded by its bundled stb_image |
 | SDL2_ttf 2.20.2 | its bundled FreeType, no HarfBuzz |
 | SDL2_mixer 2.6.3 | WAV and Ogg Vorbis (bundled stb_vorbis) |

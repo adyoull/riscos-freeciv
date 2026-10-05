@@ -1,5 +1,13 @@
 # Changes
 
+## 3.2.6-riscos14test (2026-10-05)
+
+- Relinked with the **riscos-mesa 20.3.5-12** release devkit instead of the
+  interim devkit 12f, which riscos-mesa has withdrawn. The build now uses
+  only published files. The SDL library's code is identical to 12f's, so
+  the game behaves the same; only some Mesa (OpenGL) objects differ, and
+  Freeciv doesn't use OpenGL. No Freeciv code changes.
+
 ## 3.2.6-riscos13test (2026-10-05)
 
 Rebuilt from clean (toolchain, every library and Freeciv) against the

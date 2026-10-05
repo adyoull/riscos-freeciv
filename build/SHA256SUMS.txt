@@ -6,4 +6,4 @@
 34cf46e38f5dc5df1dcc794f3056a21535e92b35dec7a3b1f944deaf8ff36ce0  freeciv-R3_2_6.tar.gz
 e32e817f7b4166a301f60b14a711871bfab7d35c1d7e29b585dfc479ae150aa4  sqlite3_3.45.1.orig.tar.xz
 bcdb35fbda9315f845bf207675c8a6e62b383005a4b0e35eea1007a717da9914  riscos-crossdev-toolchain-1.3-x86_64-linux.tar.xz
-9046d20daeecaa46b2ddfec3ef6d18a33ded7a8840eff30a32239d1482e82313  riscos-mesa-devkit-12f.tgz
+07f1066b81ed582bd1fbed44fa7892f3ffaf20ad2cbe4b6ab7deafb2cd5df3ea  riscos-mesa-devkit-20.3.5-12.tgz

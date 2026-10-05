@@ -7,7 +7,7 @@
 set -e
 . "$(dirname "$0")/env.sh"
 
-VERSION=${VERSION:-$FREECIV_VERSION-riscos13test}
+VERSION=${VERSION:-$FREECIV_VERSION-riscos14test}
 FC=$SRC/freeciv-$FREECIV_TAG
 B=$FC/build-ro
 DIST=${DIST:-$RCF_ROOT/dist}
