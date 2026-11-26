@@ -1,0 +1,18 @@
+| Mixed for !Freeciv: run by !Run when the client is the "mixed" program
+| FreecivSDL. UnixLib, libstdc++ and Freeciv's own libraries are linked
+| into it; SDL 2, EGL and OSMesa are shared libraries from riscos-mesa's
+| !MesaLibs, which !SharedLibs's loader (ld-riscos/so/2) loads.
+
+| Boot !SharedLibs, then !MesaLibs (which puts ld-riscos/so/2 into
+| !SharedLibs if it isn't there), if the Filer hasn't seen them yet.
+If "<SharedLibs$Dir>" = "" Then IfThere Boot:Resources.!SharedLibs.!Boot Then Run Boot:Resources.!SharedLibs.!Boot
+If "<MesaLibs$Dir>" = "" Then IfThere Boot:Resources.!MesaLibs.!Boot Then Run Boot:Resources.!MesaLibs.!Boot
+If "<SharedLibs$Dir>" = "" Then Error Freeciv needs !SharedLibs (from PackMan) in !Boot.Resources.
+If "<MesaLibs$Dir>" = "" Then Error Freeciv needs !MesaLibs 20.3.5-23 or later in !Boot.Resources. It's in riscos-mesa-MesaLibs-20.3.5-23.zip from github.com/adyoull/riscos-mesa/releases. Restart the computer after installing it.
+Unset Freeciv$SO2
+IfThere SharedLibs:lib.ld-riscos-eabihf/so Then Set Freeciv$SO2 1
+If "<Freeciv$SO2>" = "" Then Error The !SharedLibs booted has no ld-riscos/so/2: Freeciv needs a newer one (GCCSDK 8 or later) in !Boot.Resources.
+Unset Freeciv$SO2
+
+| Where the loader finds the libraries: SOManager reads <program>$LD$Env.
+Set FreecivSDL$LD$Env "LD_LIBRARY_PATH=/MesaLibs:"

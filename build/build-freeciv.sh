@@ -62,6 +62,34 @@ if [ "$1" = reconfigure ] || [ ! -f "$B/build.ninja" ]; then
 fi
 ninja -C "$B" -j"$JOBS" freeciv-sdl2 freeciv-server
 
+# Mixed client (MIXED=1, the default): the same objects linked again with
+# SDL 2, EGL and OSMesa as shared libraries from the devkit's lib/shared,
+# which users get from !MesaLibs; UnixLib, libstdc++, zlib and Freeciv's
+# own libraries (SDL_image/ttf/mixer, curl, SQLite) stay linked in.
+# riscos-crossdev docs/MIXED.md and the devkit's docs/porting/mixed.md.
+#  -static -> -rdynamic -Wl,-rpath-link=<the toolchain's mixed-stubs>
+#  no --as-needed (not tried with SOManager), and -ldl for SDL's dlopen.
+rm -f "$B/freeciv-sdl2-mixed"
+if [ "${MIXED:-1}" = 1 ]; then
+  [ -d "$DEVKIT/lib/shared" ] || die "$DEVKIT has no lib/shared (needs riscos-mesa 20.3.5-19 or later)"
+  stubs=$($TARGET-gcc -print-file-name=mixed-stubs)
+  [ -d "$stubs" ] || die "the toolchain has no mixed-stubs (needs riscos-crossdev 1.11 or later)"
+  link=$(ninja -C "$B" -t commands freeciv-sdl2 | tail -1)
+  dk=$DEVKIT/lib/pkgconfig/../../lib
+  for l in libSDL2.a libGLU.a libEGL.a libOSMesa.a; do
+    case "$link" in *"$dk/$l"*) ;; *) die "can't find $l in the client's link line" ;; esac
+  done
+  case "$link" in *" -static "*) ;; *) die "the client's link line has no -static" ;; esac
+  link=${link//" $dk/libSDL2.a "/" -L$DEVKIT/lib/shared -lSDL2 -lEGL -lOSMesa -ldl "}
+  link=${link//" $dk/libGLU.a "/" "}
+  link=${link//" $dk/libEGL.a "/" "}
+  link=${link//" $dk/libOSMesa.a "/" "}
+  link=${link//" -Wl,--as-needed "/" "}
+  link=${link//" -static "/" -rdynamic -Wl,-rpath-link=$stubs "}
+  link=${link//"-o freeciv-sdl2 "/"-o freeciv-sdl2-mixed "}
+  ( cd "$B" && eval "$link" )
+fi
+
 # A/B test client: the same objects, linked with $AB_DEVKIT's libraries
 # (only the SDL library differs), as freeciv-sdl2-10h.
 rm -f "$B/freeciv-sdl2-10h"
@@ -73,4 +101,4 @@ if [ -n "$AB_DEVKIT" ]; then
   link=${link//"-o freeciv-sdl2 "/"-o freeciv-sdl2-10h "}
   ( cd "$B" && eval "$link" )
 fi
-ls -la "$B"/freeciv-sdl2 "$B"/freeciv-sdl2-10h "$B"/freeciv-server 2>/dev/null || true
+ls -la "$B"/freeciv-sdl2 "$B"/freeciv-sdl2-mixed "$B"/freeciv-sdl2-10h "$B"/freeciv-server 2>/dev/null || true

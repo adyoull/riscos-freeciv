@@ -13,7 +13,7 @@
 RCF_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 
 : "${GCCSDK_ENV:=/opt/riscos/env}"
-: "${DEVKIT:=$RCF_ROOT/devkit/riscos-mesa-devkit-20.3.5-12}"
+: "${DEVKIT:=$RCF_ROOT/devkit/riscos-mesa-devkit-20.3.5-23}"
 # Speed comparisons only: a second client linked with another devkit's SDL
 # (freeciv-sdl2-10h when set to devkit 10h). Off by default.
 : "${AB_DEVKIT=}"
@@ -26,7 +26,7 @@ RCF_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 FREECIV_VERSION=3.2.6
 # The toolchain: riscos-crossdev's prebuilt release, which includes UnixLib
 # (1.3: UnixLib 5.0.3.2, static linking only) and PThreadTicker.
-CROSSDEV=1.3
+CROSSDEV=1.14
 # To try a UnixLib release the toolchain doesn't have yet, set UNIXLIB to
 # its directory in $DL (libunixlib.a, unixlib-riscos.diff,
 # PThreadTicker-*.zip, SHA256SUMS); prepare-toolchain.sh installs it over

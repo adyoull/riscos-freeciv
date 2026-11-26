@@ -88,7 +88,8 @@ step_curl() {
 # no WAL (needs shared memory) and no dynamic extensions.
 step_sqlite() {
   unpack sqlite3_3.45.1.orig.tar.xz sqlite3-3.45.1 sqlite
-  ( cd "$SRC/sqlite3-3.45.1"
+  command -v tclsh >/dev/null || die "sqlite needs tclsh on the build machine (apt install tcl)"
+  ( set -e; cd "$SRC/sqlite3-3.45.1"
     mkdir -p bld && cd bld
     ../configure --disable-tcl >/dev/null   # host configure, only to make sqlite3.c
     make sqlite3.c >/dev/null

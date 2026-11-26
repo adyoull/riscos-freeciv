@@ -7,7 +7,7 @@
 set -e
 . "$(dirname "$0")/env.sh"
 
-VERSION=${VERSION:-$FREECIV_VERSION-riscos14test}
+VERSION=${VERSION:-$FREECIV_VERSION-riscos15test}
 FC=$SRC/freeciv-$FREECIV_TAG
 B=$FC/build-ro
 DIST=${DIST:-$RCF_ROOT/dist}
@@ -30,9 +30,24 @@ cp "$RCF_ROOT"/app/'!Freeciv'/* "$APP/"
 # !CivServer: starts the server (inside !Freeciv) in a TaskWindow by hand.
 cp "$RCF_ROOT"/app/'!CivServer'/* "$SRVAPP/"
 
-# Programs: ELF -> AIF (Absolute), stripped. -e: EABI (arm-riscos-gnueabihf) ELF.
+# Programs. The server: ELF -> AIF (Absolute), stripped; -e: EABI
+# (arm-riscos-gnueabihf) ELF. The client: with MIXED=1 (the default) the
+# mixed program from build-freeciv.sh, stripped but kept as an ELF (&E1F),
+# as FreecivSDL: !Run sets FreecivSDL$LD$Env from that name, and a "-" in a
+# variable name is best avoided. Mixed,feb (in app/) goes with it; !Run
+# only runs it when FreecivSDL is there. With MIXED=0 the static client
+# freeciv-sdl2 is converted to AIF like the server, and Mixed is left out.
+# !MesaLibs isn't included: users install riscos-mesa's own release in
+# !Boot.Resources, so that every mixed program shares one copy.
 # freeciv-sdl2-10h (test builds only): the A/B client from build-freeciv.sh.
-progs="freeciv-sdl2 freeciv-server"
+progs="freeciv-server"
+if [ "${MIXED:-1}" = 1 ]; then
+  [ -x "$B/freeciv-sdl2-mixed" ] || die "no mixed client: build with MIXED=1 (build/build-freeciv.sh)"
+  $TARGET-strip -o "$APP/FreecivSDL,e1f" "$B/freeciv-sdl2-mixed"
+else
+  rm -f "$APP/Mixed,feb"
+  progs="freeciv-sdl2 $progs"
+fi
 [ -x "$B/freeciv-sdl2-10h" ] && progs="$progs freeciv-sdl2-10h"
 for p in $progs; do
   $TARGET-strip -o "$STAGE/$p.stripped" "$B/$p"
@@ -93,4 +108,4 @@ echo "$VERSION" > "$APP/docs/Version,fff"
 
 ( cd "$DIST" && rm -f "Freeciv-$VERSION.zip" && python3 "$RCF_ROOT/tools/rozip.py" "Freeciv-$VERSION.zip" '!Freeciv' '!CivServer' )
 ls -la "$DIST/Freeciv-$VERSION.zip"
-md5sum "$DIST/Freeciv-$VERSION.zip" "$APP"/*,ff8
+md5sum "$DIST/Freeciv-$VERSION.zip" "$APP"/*,ff8 "$APP"/*,e1f 2>/dev/null || true

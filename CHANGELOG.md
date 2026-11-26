@@ -1,5 +1,34 @@
 # Changes
 
+## 3.2.6-riscos15test (2026-11-26)
+
+The client is now a "mixed" program, and everything is rebuilt with the
+current toolchain and libraries. No Freeciv code changes.
+
+- **The client loads SDL from !MesaLibs.** UnixLib, libstdc++ and
+  Freeciv's own libraries (SDL2_image, SDL2_ttf, SDL2_mixer, curl, SQLite,
+  Lua) are still linked in, but SDL 2, EGL and OSMesa are now shared
+  libraries from riscos-mesa's !MesaLibs, loaded by !SharedLibs. The
+  client is `!Freeciv.FreecivSDL`, an ELF file (filetype &E1F) of 5.5MB
+  instead of the 14.6MB `freeciv-sdl2`, and the zip is about 3MB smaller.
+  It needs !SharedLibs with ld-riscos/so/2 and !MesaLibs 20.3.5-23 or
+  later in !Boot.Resources; the new `!Freeciv.Mixed` boots them, and
+  stops with an error that says what's missing. Its WimpSlot is 34000K
+  (was 44000K). The server is unchanged in form: an Absolute file with
+  everything linked in. `MIXED=0` still builds the static client (see
+  BUILDING.md, "The mixed client").
+- **Toolchain: riscos-crossdev 1.14**, with **UnixLib 5.0.3.12** and
+  PThreadTicker 0.04 (included in !Freeciv). UnixLib now word-aligns
+  data and gives each thread its own `thread_local` variables; Freeciv
+  has no `thread_local` variables, so only the first matters to it.
+  riscos-crossdev's checks pass on both programs, and
+  `check-mixed-package` finds every library the client needs in
+  !MesaLibs 20.3.5-23.
+- **SDL: riscos-mesa 20.3.5-23**, SDL 2.32.10 (was 2.26), with
+  SDL2_image, SDL2_ttf and SDL2_mixer rebuilt against it.
+- `build/build-deps.sh` stops if the build machine has no `tclsh`, which
+  SQLite's build needs, instead of carrying on without SQLite.
+
 ## 3.2.6-riscos14test (2026-10-05)
 
 - Relinked with the **riscos-mesa 20.3.5-12** release devkit instead of the

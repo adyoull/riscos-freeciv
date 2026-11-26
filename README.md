@@ -17,21 +17,23 @@ gives the sound a larger buffer so music doesn't break up;
 riscos12test only collects its timing statistics when logging is on;
 riscos13test is rebuilt with riscos-crossdev 1.3 (UnixLib 5.0.3.2) and
 riscos-mesa devkit 12f; riscos14test with the riscos-mesa 20.3.5-12
-release.
+release; riscos15test is built with riscos-crossdev 1.14 (UnixLib
+5.0.3.12) and riscos-mesa 20.3.5-23, and its client is a "mixed" program
+that loads SDL from riscos-mesa's !MesaLibs.
 
 ## How it works
 
 | Part | What it is |
 |---|---|
 | Freeciv 3.2.6 | upstream tag `R3_2_6`, built with meson, plus the patches in `patches/freeciv` |
-| SDL2 | the riscos-mesa devkit (20.3.5-12): SDL 2.26 with the RISC OS Wimp video driver and the SharedSoundBuffer sound driver |
+| SDL2 | riscos-mesa 20.3.5-23: SDL 2.32.10 with the RISC OS Wimp video driver and the SharedSoundBuffer sound driver. The client loads it, with EGL and OSMesa, from riscos-mesa's !MesaLibs as shared libraries (see BUILDING.md, "The mixed client") |
 | SDL2_image 2.6.3 | PNG only, decoded by its bundled stb_image |
 | SDL2_ttf 2.20.2 | its bundled FreeType, no HarfBuzz |
 | SDL2_mixer 2.6.3 | WAV and Ogg Vorbis (bundled stb_vorbis) |
 | libcurl 8.10.1 | plain HTTP only (no TLS yet) |
 | SQLite 3.45.1 | Freeciv's meson build links it into the server |
 | Lua 5.4, tolua | bundled with Freeciv |
-| Toolchain | riscos-crossdev 1.3 (GCCSDK GCC 10.2) with UnixLib 5.0.3.2 |
+| Toolchain | riscos-crossdev 1.14 (GCCSDK GCC 10.2) with UnixLib 5.0.3.12, linked into both programs |
 
 **Why not OpenGL/EGL?** Freeciv's SDL2 client draws everything in software
 into one surface. On RISC OS any GL is Mesa running in software too, so
@@ -41,9 +43,10 @@ scaled render size, hardware overlays; SDL's opt-in EGL path from devkit
 costs most is how much is copied and plotted per update, so on RISC OS the
 client copies only the changed parts into SDL's window framebuffer (patch
 0006), which the riscos-mesa SDL driver plots with a Wimp_UpdateWindow per
-area. The SDL library still contains the riscos-mesa GL code (about 4MB of
-the client's 13MB of code), because the devkit's SDL calls into Mesa; an
-SDL built without GL (like OpenTTD's) would drop it.
+area. SDL still needs riscos-mesa's GL code, because the devkit's SDL calls into
+Mesa; in the mixed client that code is in !MesaLibs's libEGL and
+libOSMesa rather than in the program, which is why the client's code is
+5MB instead of 14MB.
 
 ### RISC OS changes (patches/freeciv)
 

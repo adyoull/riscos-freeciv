@@ -12,6 +12,12 @@ Requirements
 ------------
 - RISC OS 5 on an ARMv7 machine (Raspberry Pi 2/3/4/5, BeagleBoard, ...).
 - SharedUnixLibrary 1.16+ and ARMEABISupport (from PackMan).
+- !SharedLibs with ld-riscos/so/2 (from PackMan), in !Boot.Resources.
+- !MesaLibs 20.3.5-23 or later, in !Boot.Resources: it's in
+  riscos-mesa-MesaLibs-20.3.5-23.zip from
+  https://github.com/adyoull/riscos-mesa/releases . Restart the computer
+  after installing a new !MesaLibs. Freeciv loads SDL from it, and
+  shares it with other programs that use it.
 - About 80MB of free memory for a small game against the computer.
 - For sound: SharedSound (part of RISC OS), and StreamManager and
   SharedSoundBuffer, in ssb.zip from

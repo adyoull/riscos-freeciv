@@ -19,9 +19,12 @@ each is listed at the top of `build/fetch-sources.sh`:
 - `freeciv-R3_2_6.tar.gz` (GitHub tag archive), `SDL2_image-2.6.3.tar.gz`,
   `SDL2_ttf-2.20.2.tar.gz`, `SDL2_mixer-2.6.3.tar.gz`, `curl-8.10.1.tar.xz`,
   `sqlite3_3.45.1.orig.tar.xz`
-- `riscos-mesa-devkit-20.3.5-12.tgz` (`DEVKIT` in build/env.sh; riscos-mesa release v20.3.5-12)
-- `riscos-crossdev-toolchain-1.3-x86_64-linux.tar.xz` (`CROSSDEV`): GCC 10.2
-  with UnixLib 5.0.3.2 and PThreadTicker 0.03; it links static programs only
+- `riscos-mesa-devkit-20.3.5-23.tgz` (`DEVKIT` in build/env.sh; riscos-mesa
+  release v20.3.5-23): static libraries, and the shared ones in `lib/shared`
+  for the mixed client
+- `riscos-crossdev-toolchain-1.14-x86_64-linux.tar.xz` (`CROSSDEV`): GCC 10.2
+  with UnixLib 5.0.3.12 and PThreadTicker 0.04, and the mixed-program
+  support (`mixed-stubs`)
 - only to try another UnixLib release (`UNIXLIB` in build/env.sh):
   `gccsdk-64c6f81.tar.gz` and the release's files in `dl/<UNIXLIB>/`
 
@@ -33,8 +36,8 @@ each is listed at the top of `build/fetch-sources.sh`:
 | `build/fetch-sources.sh` | checks checksums, unpacks the devkit into `devkit/`, and Freeciv into `src/freeciv-R3_2_6` as a git work tree with the patches applied |
 | `build/build-deps.sh [image ttf mixer curl sqlite]` | cross-builds the static libraries into `stage/` (logs `stage/build-*.log`) |
 | `build/build-hosttools.sh` | builds `tolua` for the build machine (meson needs a native one in cross builds) |
-| `build/build-freeciv.sh [reconfigure]` | meson cross build (`build-ro/`), cross file in `stage/riscos-cross.ini`; with `AB_DEVKIT` set, also links the same client with that devkit's libraries as `freeciv-sdl2-10h`, for speed comparisons (off by default) |
-| `build/package.sh` | `dist/!Freeciv` and `dist/Freeciv-<VERSION>.zip` (RISC OS filetypes in the zip's extra fields) |
+| `build/build-freeciv.sh [reconfigure]` | meson cross build (`build-ro/`), cross file in `stage/riscos-cross.ini`; with `AB_DEVKIT` set, then links the client again as the mixed `freeciv-sdl2-mixed` (`MIXED=0` skips it); with `AB_DEVKIT` set, also links the same client with that devkit's libraries as `freeciv-sdl2-10h`, for speed comparisons (off by default) |
+| `build/package.sh` | `dist/!Freeciv` and `dist/Freeciv-<VERSION>.zip` (RISC OS filetypes in the zip's extra fields); `MIXED=0` packages the static client instead of the mixed one |
 | `build/package-update.sh <from> <files>` | a small zip with only the `!Freeciv` files changed since an earlier build (plus Version and the patches), for testers who already have it; the full zip is too big to email |
 
 Settings are in `build/env.sh` (paths, `RO_CFLAGS`). Compiler flags:
@@ -44,6 +47,35 @@ Settings are in `build/env.sh` (paths, `RO_CFLAGS`). Compiler flags:
 `build/riscos.fcproj` is Freeciv's project definition: it puts user files
 in `/<Choices$Write>/Freeciv` (a UnixLib path; UnixLib expands the
 variable when a file is opened).
+
+## The mixed client
+
+Since riscos15test the client is a "mixed" program (riscos-crossdev
+`docs/MIXED.md`, riscos-mesa `docs/porting/mixed.md`): UnixLib, libstdc++,
+libgcc and Freeciv's own libraries (SDL2_image, SDL2_ttf, SDL2_mixer,
+curl, SQLite, Lua) are linked in, and SDL 2, EGL and OSMesa are shared
+libraries that !SharedLibs's loader (`ld-riscos/so/2`) loads from
+riscos-mesa's !MesaLibs.
+
+- `build/build-freeciv.sh` takes meson's static link line for
+  `freeciv-sdl2` and changes it: `-static` becomes `-rdynamic
+  -Wl,-rpath-link=<the toolchain's mixed-stubs>`, the devkit's
+  `libSDL2.a`, `libGLU.a`, `libEGL.a` and `libOSMesa.a` become
+  `-L<devkit>/lib/shared -lSDL2 -lEGL -lOSMesa -ldl`, and
+  `-Wl,--as-needed` is dropped. It stops if the line doesn't look as
+  expected.
+- `build/package.sh` strips it and ships it as an ELF, `FreecivSDL,e1f`
+  (not converted with elf2aif). `!Run` runs `Mixed` when that file is
+  there: it boots !SharedLibs and !MesaLibs, checks for `ld-riscos/so/2`,
+  and sets `FreecivSDL$LD$Env` to `LD_LIBRARY_PATH=/MesaLibs:`. !MesaLibs
+  isn't in the zip: users install riscos-mesa's release in
+  `!Boot.Resources`. The server stays a static AIF.
+- Checks (riscos-crossdev's `checks/`, on the unstripped program):
+  `check-all.sh src/freeciv-R3_2_6/build-ro/freeciv-sdl2-mixed` and
+  `check-mixed-package.sh dist/!Freeciv/FreecivSDL,e1f <!MesaLibs>/lib`.
+- `MIXED=0 build/build-freeciv.sh && MIXED=0 build/package.sh` makes the
+  static client as before (`freeciv-sdl2,ff8`), which needs neither
+  !SharedLibs nor !MesaLibs; the zip is about 3MB bigger.
 
 ## Editing the Freeciv patches
 
