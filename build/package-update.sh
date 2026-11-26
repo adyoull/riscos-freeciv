@@ -5,7 +5,8 @@
 #   build/package-update.sh <from-version> <file>...
 #   e.g. build/package-update.sh riscos10test freeciv-sdl2,ff8 '!Run,feb' '!Help,fff'
 # The files are taken from dist/!Freeciv (run build/package.sh first). The
-# new version file and the patch files are always included.
+# new version file and the patch files are always included. NOTE, if set,
+# is added to the ReadMe (files to delete, new requirements).
 set -e
 . "$(dirname "$0")/env.sh"
 
@@ -42,6 +43,7 @@ complete copy of the game.
 Files in this update:
 $(cd "$U" && find . -type f | sed 's|^\./|  !Freeciv.|; s|,[0-9a-f]\{3\}$||; s|/|.|g' | sort)
 EOF
+[ -z "$NOTE" ] || printf '\n%s\n' "$NOTE" >> "$TMP/ReadMe,fff"
 
 ( cd "$TMP" && python3 "$RCF_ROOT/tools/rozip.py" "$OUT" 'ReadMe,fff' '!Freeciv' )
 rm -rf "$TMP"
